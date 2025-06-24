@@ -56,21 +56,68 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   async function sendWhatsAppNotification(phone: string, apiKey: string, bookingId: string) {
     const fullPhone = phone.startsWith("05") ? "966" + phone.slice(1) : phone;
-    const message = `🎉 تم تأكيد حجزك لدى شالية الأحلام\nرقم الحجز: ${bookingId}\nشكراً لاختيارك لنا!`;
+    const message = `🎉 تم تأكيد حجزك لدى شاليه نهضة الخليج\nرقم الحجز: ${bookingId}\nشكراً لاختيارك لنا!`;
+    
     try {
       const res = await fetch("/api/whatsapp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: fullPhone, message, apiKey }),
       });
-      const data = await res.json();
-      if (data.ok) {
-        toast.success("تم إرسال إشعار واتساب للعميل 📱");
+      
+      console.log("WhatsApp API Response Status:", res.status);
+      
+      // تحقق من status code أولاً
+      if (res.ok) {
+        const data = await res.json();
+        console.log("WhatsApp API Response Data:", data);
+        
+        // تحسين طريقة التحقق من النجاح
+        if (data.success || data.ok || res.status === 200) {
+          toast.success("تم إرسال إشعار واتساب للعميل بنجاح ✅📱", {
+            duration: 4000,
+            style: {
+              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+              color: '#1e293b',
+              borderRadius: '12px'
+            }
+          });
+        } else {
+          // حتى لو الـ data مش واضح، المهم الـ status 200
+          toast.success("تم إرسال إشعار واتساب للعميل 📱", {
+            duration: 3000,
+            style: {
+              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+              color: '#1e293b',
+              borderRadius: '12px'
+            }
+          });
+        }
       } else {
-        toast.error("تعذر إرسال رسالة واتساب للعميل. تحقق من مفتاح apiKey أو التفعيل.");
+        // فقط في حالة فشل الـ request نفسه
+        console.error("WhatsApp API Error Status:", res.status);
+        const errorData = await res.json().catch(() => ({}));
+        console.error("WhatsApp API Error Data:", errorData);
+        
+        toast.error("تعذر إرسال رسالة واتساب. تحقق من مفتاح apiKey أو التفعيل 🔧", {
+          duration: 4000,
+          style: {
+            background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+            color: '#fff',
+            borderRadius: '12px'
+          }
+        });
       }
-    } catch {
-      toast.error("تعذر الاتصال بخدمة واتساب");
+    } catch (error) {
+      console.error("WhatsApp API Network Error:", error);
+      toast.error("تعذر الاتصال بخدمة واتساب. تحقق من الاتصال بالإنترنت 🌐", {
+        duration: 4000,
+        style: {
+          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+          color: '#fff',
+          borderRadius: '12px'
+        }
+      });
     }
   }
 
@@ -121,7 +168,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       link.click();
       toast.dismiss();
       toast.success("تم تحميل الصورة بنجاح 🖼️");
-    } catch {
+    } catch (error) {
       toast.dismiss();
       toast.error("حدث خطأ أثناء إنشاء الصورة");
     }

@@ -167,7 +167,7 @@ function BookingForm() {
             أرسل عبر واتساب: <span className="bg-[#181e22] px-2 py-1 rounded text-[#43e97b] font-mono">I allow callmebot to send me messages</span>
           </li>
           <li>
-            انتظر حتى يصلك رسالة فيها <b>apiKey</b> واكتبها بالأسفل.
+            انتظر حتى يصلك رسالة فيها <b>apiKey عبارة عن رقم مكون من 7 أرقام</b> واكتبها بالأسفل.
           </li>
         </ul>
         <div className="mt-2 text-xs text-[#43e97b]">
