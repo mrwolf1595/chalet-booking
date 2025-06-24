@@ -168,7 +168,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       link.click();
       toast.dismiss();
       toast.success("تم تحميل الصورة بنجاح 🖼️");
-    } catch (error) {
+    } catch {
       toast.dismiss();
       toast.error("حدث خطأ أثناء إنشاء الصورة");
     }
