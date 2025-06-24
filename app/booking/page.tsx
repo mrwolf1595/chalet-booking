@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
 import { toast, Toaster } from "react-hot-toast";
@@ -16,12 +16,13 @@ interface BookingData {
   customerPhone: string;
   nationalId: string;
   depositAmount: number;
-  apiKey?: string; // أضفنا هذا
+  apiKey?: string;
   status: BookingStatus;
   createdAt: Date;
 }
 
-export default function BookingPage() {
+// Component منفصل للـ BookingForm
+function BookingForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [date, setDate] = useState("");
@@ -29,9 +30,8 @@ export default function BookingPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
-  const [apiKey, setApiKey] = useState(""); // حقل apiKey الجديد
+  const [apiKey, setApiKey] = useState("");
   const [checking, setChecking] = useState(false);
-  
 
   useEffect(() => {
     const d = params.get("date");
@@ -51,22 +51,21 @@ export default function BookingPage() {
   }
 
   async function checkDuplicateBooking(date: string, nationalId: string, customerPhone: string) {
-  const q = query(
-    collection(db, "bookings"),
-    where("date", "==", date),
-    where("status", "in", ["pending", "confirmed"]),
-    // نحتاج فلتر ثاني للجوال أو الهوية بعد جلب النتائج لأن Firestore لا يدعم or في نفس where
-  );
-  const snap = await getDocs(q);
-  let found = false;
-  snap.forEach(doc => {
-    const d = doc.data();
-    if (d.nationalId === nationalId || d.customerPhone === customerPhone) {
-      found = true;
-    }
-  });
-  return found;
-}
+    const q = query(
+      collection(db, "bookings"),
+      where("date", "==", date),
+      where("status", "in", ["pending", "confirmed"]),
+    );
+    const snap = await getDocs(q);
+    let found = false;
+    snap.forEach(doc => {
+      const d = doc.data();
+      if (d.nationalId === nationalId || d.customerPhone === customerPhone) {
+        found = true;
+      }
+    });
+    return found;
+  }
 
   function validate(): true | string {
     if (!date) return "يرجى اختيار تاريخ الحجز";
@@ -81,77 +80,77 @@ export default function BookingPage() {
     return true;
   }
 
-async function handleDateChange(value: string) {
-  setDate(value);
-  if (!value) return;
-  setChecking(true);
-  // تحقق إذا التاريخ محجوز مباشرة
-  const q = query(
-    collection(db, "bookings"),
-    where("date", "==", value),
-    where("status", "in", ["pending", "confirmed"])
-  );
-  const snap = await getDocs(q);
-  setChecking(false);
-  if (!snap.empty) {
-    toast.error("هذا اليوم محجوز بالفعل، اختر يوم آخر.", { duration: 3500 });
-    setDate(""); // امسح التاريخ من الحقل
+  async function handleDateChange(value: string) {
+    setDate(value);
+    if (!value) return;
+    setChecking(true);
+    const q = query(
+      collection(db, "bookings"),
+      where("date", "==", value),
+      where("status", "in", ["pending", "confirmed"])
+    );
+    const snap = await getDocs(q);
+    setChecking(false);
+    if (!snap.empty) {
+      toast.error("هذا اليوم محجوز بالفعل، اختر يوم آخر.", { duration: 3500 });
+      setDate("");
+    }
   }
-}
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const valid = validate();
+    if (valid !== true) {
+      toast.error(valid as string);
+      return;
+    }
 
-async function handleSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  const valid = validate();
-  if (valid !== true) {
-    toast.error(valid as string);
-    return;
+    toast.loading("جاري التحقق من الحجوزات السابقة...");
+    const isDuplicate = await checkDuplicateBooking(date, nationalId, customerPhone);
+    toast.dismiss();
+    if (isDuplicate) {
+      toast.error("لديك حجز مسبق في نفس اليوم بهذه البيانات. لا يمكن تكرار الحجز.");
+      return;
+    }
+    if (!apiKey) {
+      toast("إذا أردت استقبال إشعارات واتساب: نفذ خطوات التفعيل وأدخل مفتاح apiKey", { icon: "ℹ️" });
+    }
+    toast.loading("جاري التحقق من توفر اليوم...");
+    const available = await checkDateAvailable(date);
+    toast.dismiss();
+    if (!available) {
+      toast.error("اليوم غير متاح أو محجوز مسبقًا. يرجى اختيار يوم آخر.");
+      return;
+    }
+    const bookingId = `BK${Date.now()}`;
+    const data: Omit<BookingData, "createdAt"> = {
+      bookingId,
+      date,
+      customerName,
+      customerPhone,
+      nationalId,
+      depositAmount: Number(depositAmount),
+      apiKey: apiKey.trim(),
+      status: "pending"
+    };
+    await setDoc(doc(db, "bookings", bookingId), {
+      ...data,
+      createdAt: new Date()
+    });
+    toast.success(
+      `تم إرسال طلب الحجز بنجاح!\nرقم الحجز: ${bookingId}\nسيتم مراجعة طلبك والتواصل معك.`,
+      { duration: 5000 }
+    );
+    setCustomerName(""); 
+    setCustomerPhone(""); 
+    setNationalId(""); 
+    setDepositAmount(""); 
+    setApiKey("");
+    setTimeout(() => router.push("/"), 2000);
   }
-  // تحقق من التكرار أولاً
-  toast.loading("جاري التحقق من الحجوزات السابقة...");
-  const isDuplicate = await checkDuplicateBooking(date, nationalId, customerPhone);
-  toast.dismiss();
-  if (isDuplicate) {
-    toast.error("لديك حجز مسبق في نفس اليوم بهذه البيانات. لا يمكن تكرار الحجز.");
-    return;
-  }
-  if (!apiKey) {
-    toast("إذا أردت استقبال إشعارات واتساب: نفذ خطوات التفعيل وأدخل مفتاح apiKey", { icon: "ℹ️" });
-  }
-  toast.loading("جاري التحقق من توفر اليوم...");
-  const available = await checkDateAvailable(date);
-  toast.dismiss();
-  if (!available) {
-    toast.error("اليوم غير متاح أو محجوز مسبقًا. يرجى اختيار يوم آخر.");
-    return;
-  }
-  const bookingId = `BK${Date.now()}`;
-  const data: Omit<BookingData, "createdAt"> = {
-    bookingId,
-    date,
-    customerName,
-    customerPhone,
-    nationalId,
-    depositAmount: Number(depositAmount),
-    apiKey: apiKey.trim(),
-    status: "pending"
-  };
-  await setDoc(doc(db, "bookings", bookingId), {
-    ...data,
-    createdAt: new Date()
-  });
-  toast.success(
-    `تم إرسال طلب الحجز بنجاح!\nرقم الحجز: ${bookingId}\nسيتم مراجعة طلبك والتواصل معك.`,
-    { duration: 5000 }
-  );
-  setCustomerName(""); setCustomerPhone(""); setNationalId(""); setDepositAmount(""); setApiKey("");
-  setTimeout(() => router.push("/"), 2000);
-}
-
 
   return (
-    <main>
-      <Toaster position="top-center" />
+    <>
       <header className="text-center py-8">
         <h1 className="text-2xl font-bold mb-2">📝 نموذج حجز الشالية</h1>
         <p className="text-gray-600">يرجى ملء جميع البيانات بدقة</p>
@@ -179,18 +178,18 @@ async function handleSubmit(e: React.FormEvent) {
       <form className="booking-container max-w-lg mx-auto" onSubmit={handleSubmit}>
         <div className="form-group mb-6">
           <label htmlFor="date">تاريخ الحجز:</label>
-<input
-  type="date"
-  id="date"
-  className="input"
-  value={date}
-  onChange={e => handleDateChange(e.target.value)}
-  required
-  min={new Date().toISOString().split("T")[0]}
-  disabled={checking}
-/>
-
+          <input
+            type="date"
+            id="date"
+            className="input"
+            value={date}
+            onChange={e => handleDateChange(e.target.value)}
+            required
+            min={new Date().toISOString().split("T")[0]}
+            disabled={checking}
+          />
         </div>
+        
         <div className="form-group mb-6">
           <label htmlFor="customerName">الاسم الكامل:</label>
           <input
@@ -202,6 +201,7 @@ async function handleSubmit(e: React.FormEvent) {
             required
           />
         </div>
+        
         <div className="form-group mb-6">
           <label htmlFor="customerPhone">رقم الجوال:</label>
           <input
@@ -214,6 +214,7 @@ async function handleSubmit(e: React.FormEvent) {
             required
           />
         </div>
+        
         <div className="form-group mb-6">
           <label htmlFor="nationalId">رقم الهوية:</label>
           <input
@@ -226,6 +227,7 @@ async function handleSubmit(e: React.FormEvent) {
             required
           />
         </div>
+        
         <div className="form-group mb-6">
           <label htmlFor="depositAmount">مبلغ العربون (ريال سعودي):</label>
           <input
@@ -245,7 +247,7 @@ async function handleSubmit(e: React.FormEvent) {
             </div>
           )}
         </div>
-        {/* حقل apiKey */}
+        
         <div className="form-group mb-6">
           <label htmlFor="apiKey">مفتاح CallMeBot (اختياري):</label>
           <input
@@ -260,6 +262,7 @@ async function handleSubmit(e: React.FormEvent) {
             يمكنك ترك الحقل فارغًا إذا لا ترغب باستقبال إشعار واتساب.
           </small>
         </div>
+        
         <button
           type="submit"
           className="booking-btn w-full flex items-center justify-center py-3 mt-2"
@@ -268,11 +271,36 @@ async function handleSubmit(e: React.FormEvent) {
           {checking ? "يرجى الانتظار..." : "إرسال طلب الحجز"}
         </button>
       </form>
+      
       <div className="text-center mt-8">
         <Link href="/" className="admin-btn">
           العودة للصفحة الرئيسية
         </Link>
       </div>
+    </>
+  );
+}
+
+// Loading component
+function BookingPageLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="loading-spinner mx-auto mb-4"></div>
+        <p>جاري التحميل...</p>
+      </div>
+    </div>
+  );
+}
+
+// Main component with Suspense
+export default function BookingPage() {
+  return (
+    <main>
+      <Toaster position="top-center" />
+      <Suspense fallback={<BookingPageLoading />}>
+        <BookingForm />
+      </Suspense>
     </main>
   );
 }
