@@ -12,6 +12,7 @@
     "firebase": "^11.9.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
+    "moment-hijri": "^3.0.0",
     "next": "^15.3.4",
     "pdfmake": "^0.2.20",
     "react": "^19.0.0",
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/moment-hijri": "^2.1.4",
     "@types/node": "^20",
     "@types/pdfmake": "^0.2.11",
     "@types/react": "^19",

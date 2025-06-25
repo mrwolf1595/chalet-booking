@@ -238,9 +238,9 @@ header {
 
 .calendar-day.booked,
 .admin-calendar-day.has-bookings {
-  background: var(--danger-gradient);
+  background: var(--color-red-700);
   color: #fff;
-  border: 1px solid rgba(255, 107, 107, 0.3);
+  border: 1px solid rgba(255, 0, 0, 0.3);
   box-shadow: 0 4px 15px rgba(255, 107, 107, 0.2);
   cursor: not-allowed;
   position: relative;
@@ -300,7 +300,7 @@ header {
 
 /* Enhanced Status Counters */
 .admin-calendar-day span {
-  position: absolute;
+  position: relative;
   border-radius: 12px;
   font-size: 0.7rem;
   padding: 2px 6px;

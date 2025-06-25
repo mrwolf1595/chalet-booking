@@ -63,7 +63,7 @@ export default function AdminPage() {
             fontSize: '1.1rem',
             textAlign: 'center'
           }}>
-            جاري التحقق من صلاحية الدخول...
+            جاري التحقق من صلاحية الدخول لشالية 5 نجوم...
           </div>
         </div>
       </main>
@@ -110,7 +110,7 @@ export default function AdminPage() {
                   fontWeight: '600',
                   fontSize: '1rem'
                 }}>
-                  مرحباً بك في لوحة الإدارة
+                  مرحباً بك في لوحة إدارة شالية 5 نجوم
                 </div>
                 <div style={{ 
                   color: '#64748b', 

@@ -4,10 +4,11 @@ import { JSX, useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { toast } from "react-hot-toast";
+import { getFullHijriDate, getCurrentHijriDate } from "@/lib/hijri";
 
 interface Booking {
   date: string;
-  status: "confirmed" | "pending" | "cancelled";
+  status: "confirmed";
   customerName: string;
   customerPhone: string;
   nationalId: string;
@@ -34,7 +35,7 @@ export default function AdminCalendar() {
       const arr: Booking[] = [];
       snapshot.forEach(doc => {
         const d = doc.data();
-        if (d.date) arr.push({
+        if (d.date && d.status === "confirmed") arr.push({
           date: d.date,
           status: d.status,
           customerName: d.customerName,
@@ -61,10 +62,10 @@ export default function AdminCalendar() {
     for (let d = 0; d < 7; d++) {
       days.push(
         <div key={"header-" + d} className="admin-calendar-day header">
-          <span className="day-header-icon" style={{ fontSize: '0.8rem' }}>
+          <span className="day-header-icon" style={{ fontSize: '0.7rem' }}>
             {d === 5 ? "🕌" : d === 6 ? "🌙" : "📅"}
           </span>
-          <span style={{ fontSize: '0.85rem', fontWeight: '800' }}>{dayNames[d]}</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: '800' }}>{dayNames[d]}</span>
         </div>
       );
     }
@@ -79,18 +80,16 @@ export default function AdminCalendar() {
       const dayBookings = bookings.filter(b => b.date === dateStr);
 
       const count = dayBookings.length;
-      const pendingCount = dayBookings.filter(b => b.status === "pending").length;
       const confirmedCount = dayBookings.filter(b => b.status === "confirmed").length;
 
       let className = "admin-calendar-day";
       if (cellDate.getMonth() !== month) className += " other-month";
       if (cellDate.toDateString() === (new Date()).toDateString()) className += " today";
-      if (pendingCount > 0) className += " has-pending";
-      else if (confirmedCount > 0) className += " has-bookings";
+      if (confirmedCount > 0) className += " has-bookings";
 
       let title = "";
       if (count > 0) {
-        title = `مؤكد: ${confirmedCount} | معلق: ${pendingCount} | جميع الحجوزات: ${count}`;
+        title = `مؤكد: ${confirmedCount} | جميع الحجوزات: ${count}`;
       }
 
       const handleClick = () => {
@@ -112,15 +111,9 @@ export default function AdminCalendar() {
               <b>حجوزات {dateStr}</b>
             </div>
             {confirmedCount > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#22c55e' }}>
-                <span>✅</span>
-                <span>مؤكدة: {confirmedCount}</span>
-              </div>
-            )}
-            {pendingCount > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b' }}>
-                <span>⏳</span>
-                <span>معلقة: {pendingCount}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+                <span>🔒</span>
+                <span>محجوزة: {confirmedCount}</span>
               </div>
             )}
           </div>
@@ -130,61 +123,69 @@ export default function AdminCalendar() {
         setDayDetails({ date: dateStr, bookings: dayBookings });
       };
 
+      const hijriDate = getFullHijriDate(cellDate);
+
       days.push(
         <div
           key={dateStr}
           className={className}
-          style={{ cursor: count > 0 ? "pointer" : "default", position: "relative" }}
+          style={{ 
+            cursor: count > 0 ? "pointer" : "default", 
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0.25rem",
+            minHeight: "70px"
+          }}
           title={title}
           onClick={handleClick}
         >
-          <div className="day-number">{cellDate.getDate()}</div>
+          <div className="day-number" style={{ 
+            fontSize: '1.4rem', 
+            fontWeight: 'bold',
+            color: '#f8fafc',
+            marginBottom: '4px',
+            zIndex: 3,
+            textShadow: '0 2px 4px rgba(0,0,0,0.8)'
+          }}>
+            {cellDate.getDate()}
+          </div>
+          <span style={{ 
+            fontSize: '0.65rem', 
+            opacity: 0.8, 
+            textAlign: 'center', 
+            lineHeight: '1.1',
+            color: '#94a3b8',
+            textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+            fontWeight: '500'
+          }}>
+            {hijriDate.split(' ')[0]} {hijriDate.split(' ')[1]}
+          </span>
           
           {/* عدادات الحالات المحسنة */}
-          {pendingCount > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: 4,
-                right: 4,
-                background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-                color: "#1e293b",
-                borderRadius: 12,
-                fontSize: "0.7rem",
-                padding: "2px 6px",
-                zIndex: 2,
-                fontWeight: "700",
-                border: "1px solid rgba(250, 112, 154, 0.3)",
-                boxShadow: "0 2px 8px rgba(250, 112, 154, 0.3)",
-                display: "flex",
-                alignItems: "center",
-                gap: "2px"
-              }}
-            >
-              ⏳ {pendingCount}
-            </span>
-          )}
           {confirmedCount > 0 && (
             <span
               style={{
                 position: "absolute",
-                top: 4,
-                left: 4,
-                background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                color: "#1e293b",
-                borderRadius: 12,
-                fontSize: "0.7rem",
-                padding: "2px 6px",
-                zIndex: 2,
+                bottom: 2,
+                right: 2,
+                background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                color: "#fff",
+                borderRadius: 8,
+                fontSize: "0.6rem",
+                padding: "1px 4px",
+                zIndex: 4,
                 fontWeight: "700",
-                border: "1px solid rgba(79, 172, 254, 0.3)",
-                boxShadow: "0 2px 8px rgba(79, 172, 254, 0.3)",
+                border: "1px solid rgba(239, 68, 68, 0.3)",
+                boxShadow: "0 1px 4px rgba(239, 68, 68, 0.4)",
                 display: "flex",
                 alignItems: "center",
-                gap: "2px"
+                gap: "1px"
               }}
             >
-              ✅ {confirmedCount}
+              🔒 {confirmedCount}
             </span>
           )}
         </div>
@@ -193,11 +194,40 @@ export default function AdminCalendar() {
     return days;
   }
 
+  const todayGregorian = new Date();
+  const todayHijri = getCurrentHijriDate();
+
   return (
     <section className="admin-calendar-section my-6">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        <span style={{ fontSize: '1.5rem' }}>📊</span>
-        <h2 className="text-center">تقويم الحجوزات التفصيلي</h2>
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '0.5rem', 
+        marginBottom: '1.5rem',
+        textAlign: 'center'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '1.5rem' }}>📅</span>
+          <h2 className="text-xl font-semibold">التاريخ الميلادي</h2>
+        </div>
+        <div style={{ fontSize: '1.1rem', color: '#4facfe', fontWeight: '600' }}>
+          {todayGregorian.toLocaleDateString('ar-EG', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+          <span style={{ fontSize: '1.5rem' }}>🌙</span>
+          <h2 className="text-xl font-semibold">التاريخ الهجري</h2>
+        </div>
+        <div style={{ fontSize: '1.1rem', color: '#22c55e', fontWeight: '600' }}>
+          {todayHijri}
+        </div>
       </div>
       
       <div className="calendar-header flex justify-between items-center mb-4">
@@ -240,39 +270,7 @@ export default function AdminCalendar() {
         flexWrap: 'wrap'
       }}>
         <div style={{
-          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-          color: '#1e293b',
-          padding: '0.5rem 1rem',
-          borderRadius: '12px',
-          fontSize: '0.8rem',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          boxShadow: '0 4px 15px rgba(79, 172, 254, 0.3)'
-        }}>
-          <span>✅</span>
-          <span>مؤكدة: {bookings.filter(b => b.status === "confirmed").length}</span>
-        </div>
-        
-        <div style={{
-          background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-          color: '#1e293b',
-          padding: '0.5rem 1rem',
-          borderRadius: '12px',
-          fontSize: '0.8rem',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          boxShadow: '0 4px 15px rgba(250, 112, 154, 0.3)'
-        }}>
-          <span>⏳</span>
-          <span>معلقة: {bookings.filter(b => b.status === "pending").length}</span>
-        </div>
-        
-        <div style={{
-          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
           color: '#fff',
           padding: '0.5rem 1rem',
           borderRadius: '12px',
@@ -281,10 +279,10 @@ export default function AdminCalendar() {
           display: 'flex',
           alignItems: 'center',
           gap: '0.25rem',
-          boxShadow: '0 4px 15px rgba(255, 107, 107, 0.3)'
+          boxShadow: '0 4px 15px rgba(239, 68, 68, 0.3)'
         }}>
-          <span>❌</span>
-          <span>ملغية: {bookings.filter(b => b.status === "cancelled").length}</span>
+          <span>🔒</span>
+          <span>محجوزة: {bookings.filter(b => b.status === "confirmed").length}</span>
         </div>
       </div>
       
@@ -333,11 +331,7 @@ export default function AdminCalendar() {
                       left: 0,
                       right: 0,
                       height: '3px',
-                      background: b.status === "confirmed" 
-                        ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-                        : b.status === "pending"
-                        ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                        : 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                       borderRadius: '12px 12px 0 0'
                     }}></div>
                     
@@ -375,23 +369,13 @@ export default function AdminCalendar() {
                       </div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span>
-                          {b.status === "confirmed" ? "✅" : b.status === "pending" ? "⏳" : "❌"}
-                        </span>
+                        <span>🔒</span>
                         <strong>الحالة:</strong>
                         <span style={{
-                          color: b.status === "confirmed"
-                            ? "#22c55e"
-                            : b.status === "pending"
-                            ? "#f59e0b"
-                            : "#ef4444",
+                          color: "#ef4444",
                           fontWeight: '700'
                         }}>
-                          {b.status === "confirmed"
-                            ? "مؤكد"
-                            : b.status === "pending"
-                            ? "معلق"
-                            : "ملغي"}
+                          محجوز
                         </span>
                       </div>
                     </div>

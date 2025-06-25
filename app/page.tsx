@@ -6,10 +6,11 @@ import { collection, getDocs, QueryDocumentSnapshot, DocumentData } from "fireba
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from "react-hot-toast";
 import Link from "next/link";
+import { getFullHijriDate, getCurrentHijriDate } from "@/lib/hijri";
 
 interface Booking {
   date: string;
-  status: "confirmed" | "pending";
+  status: "confirmed";
   customerName?: string;
 }
 
@@ -37,7 +38,7 @@ export default function HomePage() {
           customerName: d.customerName,
         };
       }).filter(
-        (b) => b.date && (b.status === "confirmed" || b.status === "pending")
+        (b) => b.date && b.status === "confirmed"
       );
       setBookedDates(dates);
     }
@@ -81,18 +82,14 @@ export default function HomePage() {
       if (cellDate.getMonth() !== month) className += " other-month";
       if (cellDate.toDateString() === today.toDateString()) className += " today";
       if (booking?.status === "confirmed") className += " booked";
-      else if (booking?.status === "pending") className += " pending";
       else if (cellDate >= today && cellDate.getMonth() === month) className += " available";
 
       const handleClick = () => {
         if (booking) {
-          const statusText = booking.status === "confirmed" ? "محجوز" : "في الانتظار";
-          const statusIcon = booking.status === "confirmed" ? "🔒" : "⏳";
-          
-          toast.error(`${statusIcon} هذا اليوم ${statusText} مسبقًا`, { 
+          toast.error(`🔒 هذا اليوم محجوز مسبقًا`, { 
             duration: 3500,
             style: {
-              background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
               color: '#fff',
               borderRadius: '12px',
               border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -118,6 +115,7 @@ export default function HomePage() {
 
       const isAvailable = !booking && cellDate >= today && cellDate.getMonth() === month;
       const isPast = cellDate < today;
+      const hijriDate = getFullHijriDate(cellDate);
 
       days.push(
         <div
@@ -125,9 +123,7 @@ export default function HomePage() {
           className={className}
           title={
             booking
-              ? booking.status === "confirmed"
-                ? "محجوز ✅"
-                : "في الانتظار ⏳"
+              ? "محجوز 🔒"
               : isPast 
                 ? "تاريخ منتهي"
                 : "متاح للحجز 🎯"
@@ -137,11 +133,18 @@ export default function HomePage() {
             cursor: booking ? "not-allowed" : isPast ? "not-allowed" : "pointer",
             position: "relative",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center"
+            justifyContent: "center",
+            padding: "0.25rem"
           }}
         >
-          <span className="day-number">{cellDate.getDate()}</span>
+          <span className="day-number" style={{ fontSize: '1rem', fontWeight: 'bold' }}>
+            {cellDate.getDate()}
+          </span>
+          <span style={{ fontSize: '0.65rem', opacity: 0.8, textAlign: 'center', lineHeight: '1.1' }}>
+            {hijriDate.split(' ')[0]} {hijriDate.split(' ')[1]}
+          </span>
           
           {/* أيقونات الحالة */}
           {booking && (
@@ -151,7 +154,7 @@ export default function HomePage() {
               right: "2px",
               fontSize: "0.7rem"
             }}>
-              {booking.status === "confirmed" ? "🔒" : "⏳"}
+              🔒
             </span>
           )}
           
@@ -170,6 +173,9 @@ export default function HomePage() {
     }
     return days;
   }
+
+  const todayGregorian = new Date();
+  const todayHijri = getCurrentHijriDate();
 
   return (
     <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
@@ -196,7 +202,7 @@ export default function HomePage() {
         
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginBottom: '1rem' }}>
           <span style={{ fontSize: '3rem' }}>🏖️</span>
-          <h1 className="text-3xl font-bold">شالية الأحلام</h1>
+          <h1 className="text-3xl font-bold">شالية 5 نجوم</h1>
           <span style={{ fontSize: '3rem' }}>🌊</span>
         </div>
         
@@ -205,17 +211,58 @@ export default function HomePage() {
         </p>
       </header>
 
+      {/* الجملة التوضيحية قبل التاريخ الميلادي */}
+      <div style={{ 
+        textAlign: 'center', 
+        marginBottom: '1.5rem',
+        padding: '0.8rem 0.5rem',
+        background: 'rgba(34,197,255,0.07)',
+        borderRadius: '12px',
+        border: '1px solid #e0e7ef',
+        fontWeight: 600,
+        fontSize: '1.07rem',
+        color: '#f3f4f6',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.7rem'
+      }}>
+        <span>ℹ️</span>
+        للحجز قم بالضغط على اليوم الذي تريده، مع العلم أن <span style={{ color: '#ef4444', fontWeight: 800 }}>اللون الأحمر 🔒 محجوز</span> و
+        <span style={{ color: '#22d3ee', fontWeight: 800 }}>اللون السماوي 🎯 متاح للحجز</span>
+      </div>
+
       {/* تقويم محسن */}
       <section className="calendar-container my-8">
         <div style={{ 
           display: 'flex', 
+          flexDirection: 'column',
           alignItems: 'center', 
           justifyContent: 'center', 
-          gap: '0.75rem', 
-          marginBottom: '1.5rem' 
+          gap: '0.5rem', 
+          marginBottom: '1.5rem',
+          textAlign: 'center'
         }}>
-          <span style={{ fontSize: '1.5rem' }}>📅</span>
-          <h2 className="text-xl font-semibold">تقويم التوفر</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.5rem' }}>📅</span>
+            <h2 className="text-xl font-semibold">التاريخ الميلادي</h2>
+          </div>
+          <div style={{ fontSize: '1.1rem', color: '#4facfe', fontWeight: '600' }}>
+            {todayGregorian.toLocaleDateString('ar-EG', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <span style={{ fontSize: '1.5rem' }}>🌙</span>
+            <h2 className="text-xl font-semibold">التاريخ الهجري</h2>
+          </div>
+          <div style={{ fontSize: '1.1rem', color: '#22c55e', fontWeight: '600' }}>
+            {todayHijri}
+          </div>
         </div>
         
         <div className="calendar-header flex justify-between items-center mb-6">
@@ -255,12 +302,8 @@ export default function HomePage() {
             <span>متاح 🎯</span>
           </span>
           <span className="legend-item">
-            <span className="dot booked"></span>
+            <span className="dot booked" style={{ backgroundColor: '#ef4444' }}></span>
             <span>محجوز 🔒</span>
-          </span>
-          <span className="legend-item">
-            <span className="dot pending"></span>
-            <span>في الانتظار ⏳</span>
           </span>
         </div>
         
@@ -285,23 +328,6 @@ export default function HomePage() {
 
       {/* أزرار الإجراءات المحسنة */}
       <div className="flex justify-center gap-4 my-8 flex-wrap">
-        <a 
-          href="/booking" 
-          className="booking-btn"
-          style={{
-            textDecoration: 'none',
-            padding: '1rem 2rem',
-            fontSize: '1.1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            boxShadow: '0 8px 25px rgba(79, 172, 254, 0.4)'
-          }}
-        >
-          <span style={{ fontSize: '1.3rem' }}>🎯</span>
-          <span>احجز الآن</span>
-        </a>
-        
         <a 
           href="/admin" 
           className="admin-btn"

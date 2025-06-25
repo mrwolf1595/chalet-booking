@@ -56,7 +56,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   async function sendWhatsAppNotification(phone: string, apiKey: string, bookingId: string) {
     const fullPhone = phone.startsWith("05") ? "966" + phone.slice(1) : phone;
-    const message = `🎉 تم تأكيد حجزك لدى شاليه نهضة الخليج\nرقم الحجز: ${bookingId}\nشكراً لاختيارك لنا!`;
+    const message = `🎉 تم تأكيد حجزك لدى شالية 5 نجوم\nرقم الحجز: ${bookingId}\nشكراً لاختيارك لنا!`;
     
     try {
       const res = await fetch("/api/whatsapp", {
@@ -67,12 +67,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       
       console.log("WhatsApp API Response Status:", res.status);
       
-      // تحقق من status code أولاً
       if (res.ok) {
         const data = await res.json();
         console.log("WhatsApp API Response Data:", data);
         
-        // تحسين طريقة التحقق من النجاح
         if (data.success || data.ok || res.status === 200) {
           toast.success("تم إرسال إشعار واتساب للعميل بنجاح ✅📱", {
             duration: 4000,
@@ -83,7 +81,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             }
           });
         } else {
-          // حتى لو الـ data مش واضح، المهم الـ status 200
           toast.success("تم إرسال إشعار واتساب للعميل 📱", {
             duration: 3000,
             style: {
@@ -94,7 +91,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           });
         }
       } else {
-        // فقط في حالة فشل الـ request نفسه
         console.error("WhatsApp API Error Status:", res.status);
         const errorData = await res.json().catch(() => ({}));
         console.error("WhatsApp API Error Data:", errorData);
@@ -176,19 +172,30 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const total = bookings.length;
   const confirmed = bookings.filter(b => b.status === "confirmed").length;
-  const pending = bookings.filter(b => b.status === "pending").length;
-  const cancelled = bookings.filter(b => b.status === "cancelled").length;
 
   return (
-    <div className="admin-container px-4 py-6" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+    <div className="admin-container" style={{ 
+      maxWidth: '1400px', 
+      margin: '0 auto',
+      padding: '1rem'
+    }}>
       <AdminCalendar />
 
-      {/* إحصائيات محسنة */}
-      <div className="admin-tabs grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      {/* إحصائيات محسنة للموبايل */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        marginBottom: '2rem'
+      }}>
         <div className="tab-card active" style={{ 
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          padding: '1.5rem',
+          borderRadius: '16px',
+          color: '#fff',
+          textAlign: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '1.5rem' }}>📊</span>
@@ -198,51 +205,44 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
         
         <div className="tab-card" style={{ 
-          background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-          color: '#1e293b'
+          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: '#fff',
+          padding: '1.5rem',
+          borderRadius: '16px',
+          textAlign: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>✅</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>المؤكدة</h3>
+            <span style={{ fontSize: '1.5rem' }}>🔒</span>
+            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>المحجوزة</h3>
           </div>
           <span style={{ fontSize: '2rem', fontWeight: '800' }}>{confirmed}</span>
         </div>
-        
-        <div className="tab-card" style={{ 
-          background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-          color: '#1e293b'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>⏳</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>في الانتظار</h3>
-          </div>
-          <span style={{ fontSize: '2rem', fontWeight: '800' }}>{pending}</span>
-        </div>
-        
-        <div className="tab-card" style={{ 
-          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
-          color: '#fff'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>❌</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>الملغية</h3>
-          </div>
-          <span style={{ fontSize: '2rem', fontWeight: '800' }}>{cancelled}</span>
-        </div>
       </div>
       
-      {/* أزرار التحكم المحسنة */}
-      <div className="flex justify-between items-center gap-3 mb-6 flex-wrap">
-        <div className="flex gap-2">
+      {/* أزرار التحكم محسنة للموبايل */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1rem',
+        marginBottom: '2rem'
+      }}>
+        <div style={{
+          display: 'flex',
+          gap: '0.5rem',
+          flexWrap: 'wrap'
+        }}>
           <button 
             onClick={fetchBookings} 
             className="admin-btn"
             style={{ 
-              padding: '0.5rem 1rem',
+              padding: '0.75rem 1rem',
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
+              flex: '1',
+              minWidth: '120px',
+              justifyContent: 'center'
             }}
           >
             <span>🔄</span>
@@ -253,12 +253,15 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             href="/" 
             className="booking-btn"
             style={{ 
-              padding: '0.5rem 1rem',
+              padding: '0.75rem 1rem',
               fontSize: '0.85rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              textDecoration: 'none'
+              textDecoration: 'none',
+              flex: '1',
+              minWidth: '120px',
+              justifyContent: 'center'
             }}
           >
             <span>🏠</span>
@@ -270,11 +273,13 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           onClick={onLogout} 
           className="logout-btn"
           style={{ 
-            padding: '0.5rem 1rem',
+            padding: '0.75rem 1rem',
             fontSize: '0.85rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: '0.5rem',
+            justifyContent: 'center',
+            width: '100%'
           }}
         >
           <span>🚪</span>
@@ -282,7 +287,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </button>
       </div>
 
-      {/* جدول الحجوزات */}
+      {/* جدول الحجوزات محسن للموبايل */}
       <div className="bookings-table">
         <div style={{ 
           display: 'flex', 
@@ -319,12 +324,16 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         ) : (
           bookings.map((b) => (
             <div key={b.docId} className="booking-item" style={{ 
-              display: 'grid',
-              gridTemplateColumns: '1fr auto',
-              gap: '1.5rem',
-              alignItems: 'start'
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              marginBottom: '1.5rem',
+              background: 'rgba(15, 23, 42, 0.8)',
+              borderRadius: '16px',
+              padding: '1rem',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
             }}>
-              {/* التفاصيل مغلفة بديف له ref مخصص */}
+              {/* التفاصيل محسنة للموبايل */}
               <div
                 className="booking-info"
                 ref={el => { bookingRefs.current[b.docId] = el; }}
@@ -333,10 +342,10 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   background: "rgba(30, 41, 59, 0.6)",
                   backdropFilter: "blur(10px)",
                   color: "#fff",
-                  borderRadius: 16,
-                  padding: 20,
+                  borderRadius: 12,
+                  padding: '1rem',
                   fontFamily: "inherit",
-                  fontSize: 15,
+                  fontSize: 14,
                   border: "1px solid rgba(255, 255, 255, 0.1)",
                   position: 'relative',
                   overflow: 'hidden'
@@ -350,50 +359,50 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   right: 0,
                   height: '3px',
                   background: b.status === "confirmed" 
-                    ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+                    ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
                     : b.status === "pending"
                     ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
                     : 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)'
                 }}></div>
 
                 <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>🔢</span>
                     <span style={{ fontWeight: 700 }}>رقم الحجز:</span> 
-                    <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>{b.bookingId}</span>
+                    <span style={{ color: '#60a5fa', fontFamily: 'monospace', fontSize: '0.9rem' }}>{b.bookingId}</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>👤</span>
                     <span style={{ fontWeight: 700 }}>العميل:</span> 
                     <span style={{ color: "#4ade80", fontWeight: '700' }}>{b.customerName}</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>📱</span>
                     <span style={{ fontWeight: 700 }}>الجوال:</span> 
-                    <span style={{ color: "#60a5fa", fontFamily: 'monospace' }}>{b.customerPhone}</span>
+                    <span style={{ color: "#60a5fa", fontFamily: 'monospace', fontSize: '0.9rem' }}>{b.customerPhone}</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>🆔</span>
                     <span style={{ fontWeight: 700 }}>رقم الهوية:</span> 
-                    <span style={{ color: "#60a5fa", fontFamily: 'monospace' }}>{b.nationalId}</span>
+                    <span style={{ color: "#60a5fa", fontFamily: 'monospace', fontSize: '0.9rem' }}>{b.nationalId}</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>📅</span>
                     <span style={{ fontWeight: 700 }}>التاريخ:</span> 
                     <span style={{ color: '#f8fafc' }}>{b.date}</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>💰</span>
                     <span style={{ fontWeight: 700 }}>العربون:</span> 
                     <span style={{ color: "#facc15", fontWeight: '700' }}>{b.depositAmount} ريال</span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>💵</span>
                     <span style={{ fontWeight: 700 }}>المبلغ الكلي:</span> 
                     <span style={{ color: "#eab308", fontWeight: '700' }}>
@@ -401,7 +410,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     </span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>💳</span>
                     <span style={{ fontWeight: 700 }}>المبلغ المتبقي:</span> 
                     <span style={{ color: "#f87171", fontWeight: '700' }}>
@@ -409,21 +418,21 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     </span>
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <span>
-                      {b.status === "confirmed" ? "✅" : b.status === "pending" ? "⏳" : "❌"}
+                      {b.status === "confirmed" ? "🔒" : b.status === "pending" ? "⏳" : "❌"}
                     </span>
                     <span style={{ fontWeight: 700 }}>الحالة:</span>
                     <span style={{
                       color: b.status === "confirmed"
-                        ? "#4ade80"
+                        ? "#ef4444"
                         : b.status === "pending"
-                        ? "#facc15"
+                        ? "#f59e0b"
                         : "#f87171",
                       fontWeight: 700,
                     }}>
                       {b.status === "confirmed"
-                        ? "مؤكد"
+                        ? "محجوز"
                         : b.status === "pending"
                         ? "في الانتظار"
                         : "ملغي"}
@@ -432,12 +441,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 </div>
               </div>
 
-              {/* أزرار التحكم المحسنة */}
+              {/* أزرار التحكم محسنة للموبايل */}
               <div className="booking-actions" style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: '0.75rem',
-                minWidth: '200px'
+                width: '100%'
               }}>
                 {b.status === "pending" && (
                   <>
@@ -459,7 +468,9 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         style={{
                           paddingLeft: '40px',
                           fontSize: '0.9rem',
-                          minHeight: '40px'
+                          minHeight: '44px',
+                          width: '100%',
+                          borderRadius: '8px'
                         }}
                         onChange={e => {
                           const val = Number(e.target.value);
@@ -473,12 +484,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       className="confirm-btn" 
                       onClick={() => updateStatus(b.docId, "confirmed", b.totalAmount)}
                       style={{
-                        minHeight: '40px',
-                        fontSize: '0.85rem',
+                        minHeight: '44px',
+                        fontSize: '0.9rem',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.5rem'
+                        gap: '0.5rem',
+                        width: '100%',
+                        borderRadius: '8px'
                       }}
                     >
                       <span>✅</span>
@@ -492,12 +505,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     className="cancel-btn" 
                     onClick={() => updateStatus(b.docId, "cancelled")}
                     style={{
-                      minHeight: '40px',
-                      fontSize: '0.85rem',
+                      minHeight: '44px',
+                      fontSize: '0.9rem',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '0.5rem'
+                      gap: '0.5rem',
+                      width: '100%',
+                      borderRadius: '8px'
                     }}
                   >
                     <span>❌</span>
@@ -510,12 +525,14 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     className="admin-btn"
                     onClick={() => downloadBookingAsPNG(b.docId)}
                     style={{
-                      minHeight: '40px',
-                      fontSize: '0.85rem',
+                      minHeight: '44px',
+                      fontSize: '0.9rem',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '0.5rem'
+                      gap: '0.5rem',
+                      width: '100%',
+                      borderRadius: '8px'
                     }}
                   >
                     <span>📸</span>
