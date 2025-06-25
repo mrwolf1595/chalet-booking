@@ -21,7 +21,6 @@ interface BookingData {
   createdAt: Date;
 }
 
-// Component منفصل للـ BookingForm
 function BookingForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -153,7 +152,7 @@ function BookingForm() {
     <>
       <header className="text-center py-8">
         <h1 className="text-2xl font-bold mb-2">📝 نموذج حجز الشالية</h1>
-        <p className="text-gray-600">يرجى ملء جميع البيانات بدقة</p>
+        <p className="text-gray-300">يرجى ملء جميع البيانات بدقة</p>
       </header>
 
       {/* تعليمات تفعيل CallMeBot */}
@@ -175,71 +174,86 @@ function BookingForm() {
         </div>
       </div>
 
-      <form className="booking-container max-w-lg mx-auto" onSubmit={handleSubmit}>
+      {/* نموذج الحجز */}
+      <form className="booking-container max-w-lg mx-auto px-2" onSubmit={handleSubmit} autoComplete="off">
+        {/* حقل التاريخ */}
         <div className="form-group mb-6">
-          <label htmlFor="date">تاريخ الحجز:</label>
+          <label htmlFor="date" className="block mb-2 text-sm font-semibold text-white">تاريخ الحجز:</label>
           <input
             type="date"
             id="date"
-            className="input"
+            className="input w-full rounded-lg bg-white bg-opacity-90 text-gray-900 font-bold border border-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 px-3 py-3 outline-none transition"
             value={date}
             onChange={e => handleDateChange(e.target.value)}
             required
             min={new Date().toISOString().split("T")[0]}
             disabled={checking}
+            style={{ fontSize: "1.06rem" }}
           />
         </div>
-        
+
+        {/* حقل الاسم */}
         <div className="form-group mb-6">
-          <label htmlFor="customerName">الاسم الكامل:</label>
+          <label htmlFor="customerName" className="block mb-2 text-sm font-semibold text-white">الاسم الكامل:</label>
           <input
             type="text"
             id="customerName"
-            className="input"
+            className="input w-full rounded-lg bg-white bg-opacity-90 text-gray-900 font-bold border border-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 px-3 py-3 outline-none transition"
             value={customerName}
             onChange={e => setCustomerName(e.target.value.replace(/[0-9\!\@\#\$\%\^\&\*\(\)\_\+\=\[\]\{\}\|\\\:\;\"\'\<\>\,\.\?\/]/g, ""))}
             required
+            style={{ fontSize: "1.06rem" }}
+            autoComplete="off"
           />
         </div>
-        
+
+        {/* حقل الجوال */}
         <div className="form-group mb-6">
-          <label htmlFor="customerPhone">رقم الجوال:</label>
+          <label htmlFor="customerPhone" className="block mb-2 text-sm font-semibold text-white">رقم الجوال:</label>
           <input
             type="tel"
             id="customerPhone"
-            className="input"
+            className="input w-full rounded-lg bg-white bg-opacity-90 text-gray-900 font-bold border border-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 px-3 py-3 outline-none transition"
             value={customerPhone}
             maxLength={10}
             onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
             required
+            style={{ fontSize: "1.06rem" }}
+            autoComplete="off"
           />
         </div>
-        
+
+        {/* حقل الهوية */}
         <div className="form-group mb-6">
-          <label htmlFor="nationalId">رقم الهوية:</label>
+          <label htmlFor="nationalId" className="block mb-2 text-sm font-semibold text-white">رقم الهوية:</label>
           <input
             type="text"
             id="nationalId"
-            className="input"
+            className="input w-full rounded-lg bg-white bg-opacity-90 text-gray-900 font-bold border border-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 px-3 py-3 outline-none transition"
             value={nationalId}
             maxLength={10}
             onChange={e => setNationalId(e.target.value.replace(/\D/g, "").slice(0, 10))}
             required
+            style={{ fontSize: "1.06rem" }}
+            autoComplete="off"
           />
         </div>
-        
+
+        {/* حقل العربون */}
         <div className="form-group mb-6">
-          <label htmlFor="depositAmount">مبلغ العربون (ريال سعودي):</label>
+          <label htmlFor="depositAmount" className="block mb-2 text-sm font-semibold text-white">مبلغ العربون (ريال سعودي):</label>
           <input
             type="number"
             id="depositAmount"
-            className="input"
+            className="input w-full rounded-lg bg-white bg-opacity-90 text-gray-900 font-bold border border-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 px-3 py-3 outline-none transition"
             value={depositAmount}
             min={50}
             max={5000}
             step="0.01"
             onChange={e => setDepositAmount(e.target.value.replace(/[^\d.]/g, ""))}
             required
+            style={{ fontSize: "1.06rem" }}
+            autoComplete="off"
           />
           {depositAmount && Number(depositAmount) > 0 && (
             <div className="mt-2 bg-green-50 text-green-800 rounded p-2 text-center">
@@ -247,22 +261,25 @@ function BookingForm() {
             </div>
           )}
         </div>
-        
+
+        {/* حقل apiKey */}
         <div className="form-group mb-6">
-          <label htmlFor="apiKey">مفتاح CallMeBot (اختياري):</label>
+          <label htmlFor="apiKey" className="block mb-2 text-sm font-semibold text-white">مفتاح CallMeBot (اختياري):</label>
           <input
             type="text"
             id="apiKey"
-            className="input"
+            className="input w-full rounded-lg bg-white bg-opacity-90 text-gray-900 font-bold border border-gray-300 focus:border-blue-400 focus:ring-2 focus:ring-blue-300 px-3 py-3 outline-none transition"
             value={apiKey}
             onChange={e => setApiKey(e.target.value.trim())}
             placeholder="مثال: 123456"
+            style={{ fontSize: "1.06rem" }}
+            autoComplete="off"
           />
           <small className="text-xs text-gray-400">
             يمكنك ترك الحقل فارغًا إذا لا ترغب باستقبال إشعار واتساب.
           </small>
         </div>
-        
+
         <button
           type="submit"
           className="booking-btn w-full flex items-center justify-center py-3 mt-2"
@@ -271,7 +288,7 @@ function BookingForm() {
           {checking ? "يرجى الانتظار..." : "إرسال طلب الحجز"}
         </button>
       </form>
-      
+
       <div className="text-center mt-8">
         <Link href="/" className="admin-btn">
           العودة للصفحة الرئيسية
