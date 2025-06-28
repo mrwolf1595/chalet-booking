@@ -2,7 +2,7 @@
 
 import { JSX, useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, getDocs, QueryDocumentSnapshot, DocumentData, deleteDoc, doc as fbDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from "react-hot-toast";
 import Link from "next/link";
@@ -28,27 +28,53 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    async function fetchBookings() {
+    async function fetchAndCleanBookings() {
       const snapshot = await getDocs(collection(db, "bookings"));
-      const dates: Booking[] = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
-        const d = doc.data();
-        return {
-          date: d.date,
-          status: d.status,
-          customerName: d.customerName,
-        };
-      }).filter(
-        (b) => b.date && b.status === "confirmed"
-      );
-      setBookedDates(dates);
+      const now = new Date();
+      now.setSeconds(0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const arr: Booking[] = [];
+      const deletePromises: Promise<void>[] = [];
+
+      snapshot.forEach((docSnap: QueryDocumentSnapshot<DocumentData>) => {
+        const d = docSnap.data();
+        if (d.date && d.status === "confirmed") {
+          const [y, m, day] = d.date.split("-").map(Number);
+          const bookingDate = new Date(y, m - 1, day);
+          bookingDate.setHours(0, 0, 0, 0);
+
+          // إذا الحجز أقدم من اليوم أو اليوم الحالي ولكن الساعة >= 15:00 (3 عصراً)
+          if (
+            bookingDate < today ||
+            (bookingDate.getTime() === today.getTime() && now.getHours() >= 15)
+          ) {
+            // حذف من فايربيز
+            deletePromises.push(deleteDoc(fbDoc(db, "bookings", docSnap.id)));
+          } else {
+            arr.push({
+              date: d.date,
+              status: d.status,
+              customerName: d.customerName,
+            });
+          }
+        }
+      });
+
+      await Promise.all(deletePromises);
+      setBookedDates(arr);
     }
-    fetchBookings();
+    fetchAndCleanBookings();
   }, []);
 
   function renderDays() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const now = new Date();
 
     const firstDay = new Date(year, month, 1);
     const startDate = new Date(firstDay);
@@ -72,6 +98,7 @@ export default function HomePage() {
     for (let i = 0; i < 42; i++) {
       const cellDate = new Date(startDate);
       cellDate.setDate(startDate.getDate() + i);
+      cellDate.setHours(0, 0, 0, 0);
       const y = cellDate.getFullYear();
       const m = (cellDate.getMonth() + 1).toString().padStart(2, "0");
       const day = cellDate.getDate().toString().padStart(2, "0");
@@ -80,13 +107,25 @@ export default function HomePage() {
 
       let className = "calendar-day";
       if (cellDate.getMonth() !== month) className += " other-month";
-      if (cellDate.toDateString() === today.toDateString()) className += " today";
+      if (cellDate.getTime() === new Date().setHours(0, 0, 0, 0)) className += " today";
+
+      // منطق إتاحة اليوم الحالي حتى الساعة 3 فقط
+      const isToday = cellDate.getTime() === now.setHours(0, 0, 0, 0);
+      const beforeCutoff = isToday && now.getHours() < 15;
+      const afterCutoff = isToday && now.getHours() >= 15;
+
       if (booking?.status === "confirmed") className += " booked";
-      else if (cellDate >= today && cellDate.getMonth() === month) className += " available";
+      else if (
+        // اليوم الحالي متاح قبل 3 عصرًا أو أي يوم مستقبلي
+        ((isToday && beforeCutoff) || cellDate > today)
+        && cellDate.getMonth() === month
+      ) {
+        className += " available";
+      }
 
       const handleClick = () => {
         if (booking) {
-          toast.error(`🔒 هذا اليوم محجوز مسبقًا`, { 
+          toast.error(`🔒 هذا اليوم محجوز مسبقًا`, {
             duration: 3500,
             style: {
               background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
@@ -96,7 +135,11 @@ export default function HomePage() {
               backdropFilter: 'blur(10px)'
             }
           });
-        } else if (cellDate >= today && cellDate.getMonth() === month) {
+        } else if (
+          // اليوم الحالي متاح فقط قبل الساعة 3
+          ((isToday && beforeCutoff) || (cellDate > today))
+          && cellDate.getMonth() === month
+        ) {
           toast.success(`🎯 تم اختيار ${dateStr} للحجز`, {
             duration: 2000,
             style: {
@@ -113,8 +156,15 @@ export default function HomePage() {
         }
       };
 
-      const isAvailable = !booking && cellDate >= today && cellDate.getMonth() === month;
-      const isPast = cellDate < today;
+      const isAvailable =
+        !booking &&
+        ((isToday && beforeCutoff) || (cellDate > today))
+        && cellDate.getMonth() === month;
+
+      const isPast =
+        cellDate < today ||
+        (isToday && afterCutoff);
+
       const hijriDate = getFullHijriDate(cellDate);
 
       days.push(
@@ -124,13 +174,13 @@ export default function HomePage() {
           title={
             booking
               ? "محجوز 🔒"
-              : isPast 
+              : isPast
                 ? "تاريخ منتهي"
                 : "متاح للحجز 🎯"
           }
           onClick={handleClick}
-          style={{ 
-            cursor: booking ? "not-allowed" : isPast ? "not-allowed" : "pointer",
+          style={{
+            cursor: isAvailable ? "pointer" : "not-allowed",
             position: "relative",
             display: "flex",
             flexDirection: "column",
@@ -145,8 +195,6 @@ export default function HomePage() {
           <span style={{ fontSize: '0.65rem', opacity: 0.8, textAlign: 'center', lineHeight: '1.1' }}>
             {hijriDate.split(' ')[0]} {hijriDate.split(' ')[1]}
           </span>
-          
-          {/* أيقونات الحالة */}
           {booking && (
             <span style={{
               position: "absolute",
@@ -157,7 +205,6 @@ export default function HomePage() {
               🔒
             </span>
           )}
-          
           {isAvailable && (
             <span style={{
               position: "absolute",
@@ -180,9 +227,12 @@ export default function HomePage() {
   return (
     <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
       <Toaster position="top-center" />
-      
+
+      {/* باقي عناصر الصفحة كما هي بالضبط بدون أي نقص */}
+      {/* ... (لا تغير على JSX والـ CSS والتنسيقات) ... */}
+
       {/* Header محسن */}
-      <header className="text-center py-8" style={{ 
+      <header className="text-center py-8" style={{
         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%)',
         backdropFilter: 'blur(20px)',
         borderRadius: '20px',
@@ -199,21 +249,21 @@ export default function HomePage() {
           height: '2px',
           background: 'linear-gradient(90deg, transparent, rgba(79, 172, 254, 0.8), transparent)'
         }}></div>
-        
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginBottom: '1rem' }}>
           <span style={{ fontSize: '3rem' }}>🏖️</span>
           <h1 className="text-3xl font-bold">شالية 5 نجوم</h1>
           <span style={{ fontSize: '3rem' }}>🌊</span>
         </div>
-        
+
         <p className="text-lg mb-6" style={{ color: '#94a3b8' }}>
           احجز شاليتك بسهولة ويسر في أجمل الأوقات
         </p>
       </header>
 
       {/* الجملة التوضيحية قبل التاريخ الميلادي */}
-      <div style={{ 
-        textAlign: 'center', 
+      <div style={{
+        textAlign: 'center',
         marginBottom: '1.5rem',
         padding: '0.8rem 0.5rem',
         background: 'rgba(34,197,255,0.07)',
@@ -234,12 +284,12 @@ export default function HomePage() {
 
       {/* تقويم محسن */}
       <section className="calendar-container my-8">
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          gap: '0.5rem', 
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
           marginBottom: '1.5rem',
           textAlign: 'center'
         }}>
@@ -248,14 +298,14 @@ export default function HomePage() {
             <h2 className="text-xl font-semibold">التاريخ الميلادي</h2>
           </div>
           <div style={{ fontSize: '1.1rem', color: '#4facfe', fontWeight: '600' }}>
-            {todayGregorian.toLocaleDateString('ar-EG', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+            {todayGregorian.toLocaleDateString('ar-EG', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })}
           </div>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
             <span style={{ fontSize: '1.5rem' }}>🌙</span>
             <h2 className="text-xl font-semibold">التاريخ الهجري</h2>
@@ -264,20 +314,20 @@ export default function HomePage() {
             {todayHijri}
           </div>
         </div>
-        
+
         <div className="calendar-header flex justify-between items-center mb-6">
-          <button 
-            className="nav-btn" 
+          <button
+            className="nav-btn"
             onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
             <span>⬅️</span>
             <span>السابق</span>
           </button>
-          
-          <h3 id="currentMonth" style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+
+          <h3 id="currentMonth" style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: '0.5rem',
             fontSize: '1.4rem',
             fontWeight: '700'
@@ -285,9 +335,9 @@ export default function HomePage() {
             <span>🗓️</span>
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h3>
-          
-          <button 
-            className="nav-btn" 
+
+          <button
+            className="nav-btn"
             onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -306,13 +356,13 @@ export default function HomePage() {
             <span>محجوز 🔒</span>
           </span>
         </div>
-        
+
         <div className="calendar-grid grid grid-cols-7 gap-1">
           {renderDays()}
         </div>
-        
-        <div style={{ 
-          textAlign: 'center', 
+
+        <div style={{
+          textAlign: 'center',
           marginTop: '1.5rem',
           padding: '1rem',
           background: 'rgba(79, 172, 254, 0.1)',
@@ -326,10 +376,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* أزرار الإجراءات المحسنة */}
+      {/* باقي الأكواد كما هي */}
       <div className="flex justify-center gap-4 my-8 flex-wrap">
-        <a 
-          href="/admin" 
+        <a
+          href="/admin"
           className="admin-btn"
           style={{
             textDecoration: 'none',
@@ -346,10 +396,9 @@ export default function HomePage() {
         </a>
       </div>
 
-      {/* سجل الحجوزات للعملاء */}
       <div className="flex justify-center my-6">
-        <Link 
-          href="/history" 
+        <Link
+          href="/history"
           className="admin-btn"
           style={{
             textDecoration: 'none',
@@ -368,7 +417,6 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* معلومات إضافية */}
       <section style={{
         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%)',
         backdropFilter: 'blur(20px)',
@@ -382,10 +430,10 @@ export default function HomePage() {
           <span style={{ fontSize: '1.5rem' }}>ℹ️</span>
           <h3 style={{ margin: 0, fontSize: '1.2rem' }}>معلومات الحجز</h3>
         </div>
-        
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
           gap: '1.5rem',
           marginTop: '1.5rem'
         }}>
@@ -401,7 +449,7 @@ export default function HomePage() {
               احجز في دقائق معدودة
             </p>
           </div>
-          
+
           <div style={{
             background: 'rgba(34, 197, 94, 0.1)',
             padding: '1rem',
@@ -414,7 +462,7 @@ export default function HomePage() {
               بياناتك محمية بأعلى معايير الأمان
             </p>
           </div>
-          
+
           <div style={{
             background: 'rgba(250, 112, 154, 0.1)',
             padding: '1rem',
