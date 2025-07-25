@@ -2,7 +2,7 @@
 
 import { JSX, useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import { getFullHijriDate, getCurrentHijriDate } from "@/lib/hijri";
 
@@ -30,13 +30,13 @@ export default function AdminCalendar() {
   const [dayDetails, setDayDetails] = useState<{ date: string, bookings: Booking[] } | null>(null);
 
   useEffect(() => {
-    async function fetchBookingsAndAutoCancelOld() {
+    async function fetchBookingsAndAutoDeleteOld() {
       const snapshot = await getDocs(collection(db, "bookings"));
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const arr: Booking[] = [];
-      const promises: Promise<void>[] = [];
+      const deletePromises: Promise<void>[] = [];
 
       snapshot.forEach(docSnap => {
         const d = docSnap.data();
@@ -47,9 +47,9 @@ export default function AdminCalendar() {
           bookingDate.setHours(0, 0, 0, 0);
 
           if (bookingDate < today) {
-            // إذا قديم: تحديث الحالة في فايربيز
+            // إذا قديم: حذف الحجز نهائياً من قاعدة البيانات
             const ref = doc(db, "bookings", docSnap.id);
-            promises.push(updateDoc(ref, { status: "cancelled" }));
+            deletePromises.push(deleteDoc(ref));
           } else {
             arr.push({
               date: d.date,
@@ -62,14 +62,16 @@ export default function AdminCalendar() {
             });
           }
         }
+        // أي حجز ملغي (cancelled) سيتم تجاهله تماماً لأنه مُحذف من لوحة الإدارة
       });
 
-      await Promise.all(promises);
+      // تنفيذ عمليات الحذف للحجوزات القديمة
+      await Promise.all(deletePromises);
 
       setBookings(arr);
     }
 
-    fetchBookingsAndAutoCancelOld();
+    fetchBookingsAndAutoDeleteOld();
   }, []);
 
   function renderDays() {
@@ -138,6 +140,9 @@ export default function AdminCalendar() {
                 <span>محجوزة: {confirmedCount}</span>
               </div>
             )}
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+              💡 الحجوزات الملغية والقديمة تُحذف نهائياً
+            </div>
           </div>
         );
 
@@ -219,8 +224,6 @@ export default function AdminCalendar() {
 
   return (
     <section className="admin-calendar-section my-6">
-      {/* ... باقي عناصر التقويم بدون تغيير ... */}
-      {/* انسخ باقي كود الواجهة حسب نسختك الأخيرة من الملف (عرض الهجري، التنقل بين الأشهر، الخ) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', textAlign: 'center', flexDirection: 'column', justifyContent: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ fontSize: '1.5rem' }}>📅</span>
@@ -242,6 +245,25 @@ export default function AdminCalendar() {
           {todayHijri}
         </div>
       </div>
+
+      {/* ملاحظة مهمة */}
+      <div style={{
+        background: 'rgba(34, 197, 94, 0.1)',
+        border: '1px solid rgba(34, 197, 94, 0.3)',
+        borderRadius: '12px',
+        padding: '1rem',
+        marginBottom: '1.5rem',
+        textAlign: 'center'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <span style={{ fontSize: '1.2rem' }}>💡</span>
+          <strong style={{ color: '#22c55e' }}>ملاحظة مهمة</strong>
+        </div>
+        <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>
+          التقويم يعرض الحجوزات المؤكدة فقط • الحجوزات الملغية والقديمة يتم حذفها نهائياً من النظام
+        </p>
+      </div>
+
       <div className="calendar-header flex justify-between items-center mb-4">
         <button
           className="nav-btn"
@@ -270,13 +292,82 @@ export default function AdminCalendar() {
           <span>➡️</span>
         </button>
       </div>
+      
       <div id="admin-calendar-grid" className="admin-calendar-grid grid grid-cols-7 gap-1">
         {renderDays()}
       </div>
-      {/* نافذة تفاصيل اليوم والمودال كما هي */}
+      
+      {/* نافذة تفاصيل اليوم */}
       {dayDetails && (
         <div className="modal fixed z-50 inset-0 flex items-center justify-center" onClick={() => setDayDetails(null)}>
-          {/* ... نفس الكود ... */}
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '20px',
+            padding: '2rem',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>📅</span>
+                حجوزات {dayDetails.date}
+              </h3>
+              <button
+                onClick={() => setDayDetails(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {dayDetails.bookings.map((booking, idx) => (
+                <div key={idx} style={{
+                  background: 'rgba(30, 41, 59, 0.6)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '1rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span>👤</span>
+                    <strong style={{ color: '#4ade80' }}>{booking.customerName}</strong>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span>📱</span>
+                    <span style={{ color: '#94a3b8' }}>{booking.customerPhone}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span>🆔</span>
+                    <span style={{ color: '#94a3b8' }}>{booking.nationalId}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span>💰</span>
+                    <span style={{ color: '#facc15' }}>العربون: {booking.depositAmount} ريال</span>
+                  </div>
+                  {booking.totalAmount && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <span>💵</span>
+                      <span style={{ color: '#eab308' }}>الإجمالي: {booking.totalAmount} ريال</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>🔒</span>
+                    <span style={{ color: '#ef4444', fontWeight: '600' }}>محجوز</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </section>

@@ -12,7 +12,7 @@ interface Booking {
   customerName: string;
   customerPhone: string;
   nationalId: string;
-  status: "confirmed" | "pending" | "cancelled";
+  status: "confirmed" | "pending"; // أزلنا "cancelled" لأن الملغية تُحذف
   depositAmount: number;
   totalAmount?: number;
   createdAt?: Timestamp;
@@ -55,7 +55,7 @@ export default function BookingHistoryPage() {
     setSearched(true);
     
     try {
-      // البحث بالهوية الوطنية فقط
+      // البحث بالهوية الوطنية فقط - سنجد فقط الحجوزات النشطة (confirmed و pending)
       const q = query(
         collection(db, "bookings"),
         where("nationalId", "==", nationalId.trim())
@@ -66,17 +66,20 @@ export default function BookingHistoryPage() {
       
       snapshot.forEach(doc => {
         const data = doc.data();
-        bookings.push({
-          bookingId: data.bookingId,
-          date: data.date,
-          customerName: data.customerName,
-          customerPhone: data.customerPhone,
-          nationalId: data.nationalId,
-          status: data.status,
-          depositAmount: data.depositAmount,
-          totalAmount: data.totalAmount,
-          createdAt: data.createdAt
-        });
+        // نستثني الحجوزات الملغية (إن وُجدت) لأنها ستُحذف تدريجياً
+        if (data.status !== "cancelled") {
+          bookings.push({
+            bookingId: data.bookingId,
+            date: data.date,
+            customerName: data.customerName,
+            customerPhone: data.customerPhone,
+            nationalId: data.nationalId,
+            status: data.status,
+            depositAmount: data.depositAmount,
+            totalAmount: data.totalAmount,
+            createdAt: data.createdAt
+          });
+        }
       });
 
       // ترتيب النتائج حسب التاريخ الأحدث
@@ -90,9 +93,9 @@ export default function BookingHistoryPage() {
       setResults(bookings);
 
       if (bookings.length === 0) {
-        toast("لا توجد حجوزات مسجلة بهذا الرقم 📋", {
+        toast("لا توجد حجوزات نشطة بهذا الرقم 📋", {
           icon: "ℹ️",
-          duration: 3000,
+          duration: 4000,
           style: {
             background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
             color: '#1e293b',
@@ -101,7 +104,7 @@ export default function BookingHistoryPage() {
           }
         });
       } else {
-        toast.success(`تم العثور على ${bookings.length} حجز 🎉`, {
+        toast.success(`تم العثور على ${bookings.length} حجز نشط 🎉`, {
           duration: 3000,
           style: {
             background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
@@ -161,9 +164,26 @@ export default function BookingHistoryPage() {
           <span style={{ fontSize: '3rem' }}>📋</span>
         </div>
         
-        <p style={{ color: '#94a3b8', margin: 0 }}>
-          أدخل رقم الهوية الوطنية لعرض جميع حجوزاتك
+        <p style={{ color: '#94a3b8', margin: 0, marginBottom: '0.5rem' }}>
+          أدخل رقم الهوية الوطنية لعرض حجوزاتك النشطة
         </p>
+        
+        {/* ملاحظة مهمة */}
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '12px',
+          padding: '0.75rem',
+          marginTop: '1rem',
+          fontSize: '0.85rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+            <span>⚠️</span>
+            <span style={{ color: '#ef4444', fontWeight: '600' }}>
+              الحجوزات الملغية يتم حذفها نهائياً من النظام
+            </span>
+          </div>
+        </div>
       </header>
 
       {/* نموذج البحث */}
@@ -292,7 +312,7 @@ export default function BookingHistoryPage() {
             ) : (
               <>
                 <span>🔍</span>
-                <span>البحث عن حجوزاتي</span>
+                <span>البحث عن حجوزاتي النشطة</span>
               </>
             )}
           </button>
@@ -347,15 +367,30 @@ export default function BookingHistoryPage() {
                 color: '#64748b',
                 fontSize: '1.2rem' 
               }}>
-                لا توجد حجوزات مسجلة
+                لا توجد حجوزات نشطة
               </h3>
               <p style={{ 
                 margin: 0, 
                 color: '#94a3b8',
-                fontSize: '0.95rem' 
+                fontSize: '0.95rem',
+                textAlign: 'center'
               }}>
-                لم يتم العثور على أي حجوزات بهذا الرقم
+                لم يتم العثور على أي حجوزات نشطة بهذا الرقم
               </p>
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '12px',
+                padding: '1rem',
+                marginTop: '1rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <span>⚠️</span>
+                  <span style={{ color: '#ef4444', fontSize: '0.9rem' }}>
+                    إذا كان لديك حجوزات ملغية، فقد تم حذفها نهائياً من النظام
+                  </span>
+                </div>
+              </div>
             </div>
           ) : (
             <div>
@@ -371,7 +406,7 @@ export default function BookingHistoryPage() {
                   fontSize: '1.3rem',
                   color: '#f8fafc' 
                 }}>
-                  حجوزاتك ({results.length})
+                  حجوزاتك النشطة ({results.length})
                 </h2>
               </div>
               
@@ -398,9 +433,7 @@ export default function BookingHistoryPage() {
                       height: '3px',
                       background: booking.status === "confirmed" 
                         ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-                        : booking.status === "pending"
-                        ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                        : 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)'
+                        : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
                     }}></div>
 
                     <div style={{ 
@@ -448,27 +481,61 @@ export default function BookingHistoryPage() {
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span>
-                            {booking.status === "confirmed" ? "✅" : booking.status === "pending" ? "⏳" : "❌"}
+                            {booking.status === "confirmed" ? "✅" : "⏳"}
                           </span>
                           <strong style={{ color: '#90cdf4' }}>الحالة:</strong>
                           <span style={{
                             color: booking.status === "confirmed"
                               ? "#4ade80"
-                              : booking.status === "pending"
-                              ? "#facc15"
-                              : "#f87171",
+                              : "#facc15",
                             fontWeight: '700',
                             fontSize: '0.95rem'
                           }}>
                             {booking.status === "confirmed"
                               ? "مؤكد"
-                              : booking.status === "pending"
-                              ? "في الانتظار"
-                              : "ملغي"}
+                              : "في الانتظار"}
                           </span>
                         </div>
                       </div>
                     </div>
+
+                    {/* ملاحظة للحجز المؤكد */}
+                    {booking.status === "confirmed" && (
+                      <div style={{
+                        background: 'rgba(34, 197, 94, 0.1)',
+                        border: '1px solid rgba(34, 197, 94, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.75rem',
+                        marginTop: '1rem',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                          <span>🎉</span>
+                          <span style={{ color: '#22c55e', fontWeight: '600', fontSize: '0.9rem' }}>
+                            تم تأكيد حجزك! نتطلع لاستقبالك
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ملاحظة للحجز في الانتظار */}
+                    {booking.status === "pending" && (
+                      <div style={{
+                        background: 'rgba(251, 191, 36, 0.1)',
+                        border: '1px solid rgba(251, 191, 36, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.75rem',
+                        marginTop: '1rem',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                          <span>⏳</span>
+                          <span style={{ color: '#fbbf24', fontWeight: '600', fontSize: '0.9rem' }}>
+                            حجزك في انتظار المراجعة والتأكيد
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, updateDoc, doc, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, orderBy, query, deleteDoc } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import Link from "next/link";
 import AdminCalendar from "./AdminCalendar";
@@ -35,21 +35,27 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const q = query(collection(db, "bookings"), orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     const arr: Booking[] = [];
+    
+    // جمع الحجوزات المعروضة فقط (pending و confirmed)
     snapshot.forEach((docSnap) => {
       const d = docSnap.data();
-      arr.push({
-        docId: docSnap.id,
-        bookingId: d.bookingId,
-        customerName: d.customerName,
-        customerPhone: d.customerPhone,
-        nationalId: d.nationalId,
-        date: d.date,
-        depositAmount: d.depositAmount,
-        totalAmount: d.totalAmount,
-        apiKey: d.apiKey,
-        status: d.status,
-      });
+      // لا نعرض الحجوزات الملغية لأنها ستُحذف
+      if (d.status !== "cancelled") {
+        arr.push({
+          docId: docSnap.id,
+          bookingId: d.bookingId,
+          customerName: d.customerName,
+          customerPhone: d.customerPhone,
+          nationalId: d.nationalId,
+          date: d.date,
+          depositAmount: d.depositAmount,
+          totalAmount: d.totalAmount,
+          apiKey: d.apiKey,
+          status: d.status,
+        });
+      }
     });
+    
     setBookings(arr);
     setLoading(false);
   }
@@ -117,6 +123,38 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  // دالة جديدة لحذف الحجز نهائياً من قاعدة البيانات
+  async function deleteBooking(docId: string, bookingId: string) {
+    try {
+      // حذف المستند من قاعدة البيانات
+      await deleteDoc(doc(db, "bookings", docId));
+      
+      toast.success(`تم حذف الحجز ${bookingId} نهائياً من النظام 🗑️`, {
+        duration: 4000,
+        style: {
+          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: '#fff',
+          borderRadius: '12px',
+          border: '1px solid rgba(255, 255, 255, 0.1)'
+        }
+      });
+      
+      // تحديث القائمة المحلية
+      fetchBookings();
+      
+    } catch (error) {
+      console.error("Error deleting booking:", error);
+      toast.error("حدث خطأ أثناء حذف الحجز. حاول مرة أخرى 🔄", {
+        duration: 4000,
+        style: {
+          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+          color: '#fff',
+          borderRadius: '12px'
+        }
+      });
+    }
+  }
+
   async function updateStatus(docId: string, newStatus: "confirmed" | "cancelled", totalAmount?: number) {
     const booking = bookings.find(b => b.docId === docId);
 
@@ -127,13 +165,21 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
     }
 
+    // إذا كانت الحالة الجديدة "cancelled" نحذف الحجز نهائياً
+    if (newStatus === "cancelled") {
+      if (booking) {
+        await deleteBooking(docId, booking.bookingId);
+      }
+      return;
+    }
+
+    // إذا كانت الحالة "confirmed" نحدث فقط
     await updateDoc(doc(db, "bookings", docId), {
       status: newStatus,
       ...(totalAmount && { totalAmount }),
     });
     
-    const successMessage = newStatus === "confirmed" ? "تم التأكيد بنجاح ✅" : "تم الإلغاء ❌";
-    toast.success(successMessage);
+    toast.success("تم التأكيد بنجاح ✅");
 
     if (
       newStatus === "confirmed" &&
@@ -199,9 +245,12 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '1.5rem' }}>📊</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>جميع الحجوزات</h3>
+            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>الحجوزات النشطة</h3>
           </div>
           <span style={{ fontSize: '2rem', fontWeight: '800' }}>{total}</span>
+          <div style={{ fontSize: '0.7rem', opacity: 0.8, marginTop: '0.25rem' }}>
+            (الملغية تُحذف فوراً)
+          </div>
         </div>
         
         <div className="tab-card" style={{ 
@@ -213,7 +262,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '1.5rem' }}>🔒</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>المحجوزة</h3>
+            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>المؤكدة</h3>
           </div>
           <span style={{ fontSize: '2rem', fontWeight: '800' }}>{confirmed}</span>
         </div>
@@ -297,7 +346,17 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           justifyContent: 'center'
         }}>
           <span style={{ fontSize: '1.5rem' }}>📋</span>
-          <h2 style={{ margin: 0, fontSize: '1.3rem' }}>جميع الحجوزات</h2>
+          <h2 style={{ margin: 0, fontSize: '1.3rem' }}>الحجوزات النشطة</h2>
+          <div style={{
+            background: 'rgba(34, 197, 94, 0.2)',
+            color: '#22c55e',
+            padding: '0.25rem 0.75rem',
+            borderRadius: '12px',
+            fontSize: '0.8rem',
+            fontWeight: '600'
+          }}>
+            الملغية تُحذف فوراً
+          </div>
         </div>
         
         {loading ? (
@@ -319,7 +378,8 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             padding: '3rem'
           }}>
             <span style={{ fontSize: '4rem' }}>📋</span>
-            <span style={{ fontSize: '1.1rem', color: '#64748b' }}>لا توجد حجوزات</span>
+            <span style={{ fontSize: '1.1rem', color: '#64748b' }}>لا توجد حجوزات نشطة</span>
+            <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>الحجوزات الملغية يتم حذفها تلقائياً</span>
           </div>
         ) : (
           bookings.map((b) => (
@@ -360,9 +420,7 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   height: '3px',
                   background: b.status === "confirmed" 
                     ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                    : b.status === "pending"
-                    ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                    : 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)'
+                    : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
                 }}></div>
 
                 <div style={{ marginTop: '0.5rem' }}>
@@ -420,22 +478,18 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <span>
-                      {b.status === "confirmed" ? "🔒" : b.status === "pending" ? "⏳" : "❌"}
+                      {b.status === "confirmed" ? "🔒" : "⏳"}
                     </span>
                     <span style={{ fontWeight: 700 }}>الحالة:</span>
                     <span style={{
                       color: b.status === "confirmed"
                         ? "#ef4444"
-                        : b.status === "pending"
-                        ? "#f59e0b"
-                        : "#f87171",
+                        : "#f59e0b",
                       fontWeight: 700,
                     }}>
                       {b.status === "confirmed"
                         ? "محجوز"
-                        : b.status === "pending"
-                        ? "في الانتظار"
-                        : "ملغي"}
+                        : "في الانتظار"}
                     </span>
                   </div>
                 </div>
@@ -500,25 +554,29 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   </>
                 )}
                 
-                {(b.status === "pending" || b.status === "confirmed") && (
-                  <button 
-                    className="cancel-btn" 
-                    onClick={() => updateStatus(b.docId, "cancelled")}
-                    style={{
-                      minHeight: '44px',
-                      fontSize: '0.9rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      width: '100%',
-                      borderRadius: '8px'
-                    }}
-                  >
-                    <span>❌</span>
-                    إلغاء الحجز
-                  </button>
-                )}
+                {/* زر الحذف النهائي بدلاً من الإلغاء */}
+                <button 
+                  className="cancel-btn" 
+                  onClick={() => {
+                    if (confirm(`هل أنت متأكد من حذف حجز ${b.bookingId} نهائياً؟\nلا يمكن التراجع عن هذا الإجراء!`)) {
+                      updateStatus(b.docId, "cancelled");
+                    }
+                  }}
+                  style={{
+                    minHeight: '44px',
+                    fontSize: '0.9rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    width: '100%',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                  }}
+                >
+                  <span>🗑️</span>
+                  حذف الحجز نهائياً
+                </button>
                 
                 {b.status === "confirmed" && (
                   <button
