@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { toast, Toaster } from "react-hot-toast";
 import Link from "next/link";
+import { getFullHijriDate } from "@/lib/hijri";
 
 interface Booking {
   bookingId: string;
@@ -452,8 +453,18 @@ export default function BookingHistoryPage() {
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                           <span>📅</span>
-                          <strong style={{ color: '#90cdf4' }}>التاريخ:</strong>
+                          <strong style={{ color: '#90cdf4' }}>التاريخ الميلادي:</strong>
                           <span style={{ color: '#f8fafc' }}>{booking.date}</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <span>🌙</span>
+                          <strong style={{ color: '#90cdf4' }}>التاريخ الهجري:</strong>
+                          <span style={{ color: '#22c55e' }}>{(() => {
+                            const [y, m, d] = booking.date.split("-").map(Number);
+                            const gregorianDate = new Date(y, m - 1, d);
+                            return getFullHijriDate(gregorianDate);
+                          })()}</span>
                         </div>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>

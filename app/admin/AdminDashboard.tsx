@@ -7,6 +7,7 @@ import { toast } from "react-hot-toast";
 import Link from "next/link";
 import AdminCalendar from "./AdminCalendar";
 import html2canvas from "html2canvas";
+import { getFullHijriDate } from "@/lib/hijri";
 
 interface Booking {
   docId: string;
@@ -450,8 +451,18 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>📅</span>
-                    <span style={{ fontWeight: 700 }}>التاريخ:</span> 
+                    <span style={{ fontWeight: 700 }}>التاريخ الميلادي:</span> 
                     <span style={{ color: '#f8fafc' }}>{b.date}</span>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <span>🌙</span>
+                    <span style={{ fontWeight: 700 }}>التاريخ الهجري:</span> 
+                    <span style={{ color: '#22c55e' }}>{(() => {
+                      const [y, m, d] = b.date.split("-").map(Number);
+                      const gregorianDate = new Date(y, m - 1, d);
+                      return getFullHijriDate(gregorianDate);
+                    })()}</span>
                   </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
