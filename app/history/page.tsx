@@ -453,6 +453,16 @@ export default function BookingHistoryPage() {
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                           <span>📅</span>
+                          <strong style={{ color: '#90cdf4' }}>يوم الحجز:</strong>
+                          <span style={{ color: '#60a5fa', fontWeight: '700' }}>{(() => {
+                            const [y, m, d] = booking.date.split("-").map(Number);
+                            const gregorianDate = new Date(y, m - 1, d);
+                            return gregorianDate.toLocaleDateString('ar-EG', { weekday: 'long' });
+                          })()}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <span>📅</span>
                           <strong style={{ color: '#90cdf4' }}>التاريخ الميلادي:</strong>
                           <span style={{ color: '#f8fafc' }}>{booking.date}</span>
                         </div>

@@ -451,6 +451,16 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                     <span>📅</span>
+                    <span style={{ fontWeight: 700 }}>يوم الحجز:</span> 
+                    <span style={{ color: '#60a5fa', fontWeight: '700' }}>{(() => {
+                      const [y, m, d] = b.date.split("-").map(Number);
+                      const gregorianDate = new Date(y, m - 1, d);
+                      return gregorianDate.toLocaleDateString('ar-EG', { weekday: 'long' });
+                    })()}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <span>📅</span>
                     <span style={{ fontWeight: 700 }}>التاريخ الميلادي:</span> 
                     <span style={{ color: '#f8fafc' }}>{b.date}</span>
                   </div>
