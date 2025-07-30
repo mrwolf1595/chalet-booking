@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    
 
     // تنسيق رقم الهاتف
     const formattedPhone = phone.startsWith('966') ? phone : `966${phone}`;
