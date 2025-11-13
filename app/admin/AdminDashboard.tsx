@@ -1,31 +1,34 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { db } from "@/lib/firebase";
-import { collection, getDocs, updateDoc, doc, orderBy, query, deleteDoc } from "firebase/firestore";
-import { toast } from "react-hot-toast";
-import Link from "next/link";
-import AdminCalendar from "./AdminCalendar";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore";
 import html2canvas from "html2canvas";
-import { getFullHijriDate } from "@/lib/hijri";
+import { toast } from "react-hot-toast";
 
-interface Booking {
-  docId: string;
-  bookingId: string;
-  customerName: string;
-  customerPhone: string;
-  nationalId: string;
-  date: string;
-  depositAmount: number;
-  totalAmount?: number;
-  apiKey?: string;
-  status: "pending" | "confirmed" | "cancelled";
+import AdminActionPanel from "@/components/admin/AdminActionPanel";
+import AdminBookingList from "@/components/admin/AdminBookingList";
+import AdminStatsOverview from "@/components/admin/AdminStatsOverview";
+import { db } from "@/lib/firebase";
+import { DashboardBooking } from "@/types/admin";
+
+import AdminCalendar from "./AdminCalendar";
+
+interface AdminDashboardProps {
+  onLogout: () => void;
 }
 
-export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
+  const [bookings, setBookings] = useState<DashboardBooking[]>([]);
   const [loading, setLoading] = useState(true);
-  const bookingRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const bookingRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     fetchBookings();
@@ -33,82 +36,79 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   async function fetchBookings() {
     setLoading(true);
-    const q = query(collection(db, "bookings"), orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    const arr: Booking[] = [];
-    
-    // جمع الحجوزات المعروضة فقط (pending و confirmed)
+    const bookingsQuery = query(
+      collection(db, "bookings"),
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(bookingsQuery);
+    const nextBookings: DashboardBooking[] = [];
+
     snapshot.forEach((docSnap) => {
-      const d = docSnap.data();
-      // لا نعرض الحجوزات الملغية لأنها ستُحذف
-      if (d.status !== "cancelled") {
-        arr.push({
+      const data = docSnap.data();
+      if (data.status !== "cancelled") {
+        nextBookings.push({
           docId: docSnap.id,
-          bookingId: d.bookingId,
-          customerName: d.customerName,
-          customerPhone: d.customerPhone,
-          nationalId: d.nationalId,
-          date: d.date,
-          depositAmount: d.depositAmount,
-          totalAmount: d.totalAmount,
-          apiKey: d.apiKey,
-          status: d.status,
+          bookingId: data.bookingId,
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          nationalId: data.nationalId,
+          date: data.date,
+          depositAmount: data.depositAmount,
+          totalAmount: data.totalAmount,
+          apiKey: data.apiKey,
+          status: data.status,
         });
       }
     });
-    
-    setBookings(arr);
+
+    setBookings(nextBookings);
     setLoading(false);
   }
 
-  async function sendWhatsAppNotification(phone: string, apiKey: string, bookingId: string) {
-    const fullPhone = phone.startsWith("05") ? "966" + phone.slice(1) : phone;
+  async function sendWhatsAppNotification(
+    phone: string,
+    apiKey: string,
+    bookingId: string
+  ) {
+    const fullPhone = phone.startsWith("05") ? `966${phone.slice(1)}` : phone;
     const message = `🎉 تم تأكيد حجزك لدى شالية 5 نجوم\nرقم الحجز: ${bookingId}\nشكراً لاختيارك لنا!`;
-    
+
     try {
       const res = await fetch("/api/whatsapp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: fullPhone, message, apiKey }),
       });
-      
-      console.log("WhatsApp API Response Status:", res.status);
-      
+
       if (res.ok) {
         const data = await res.json();
-        console.log("WhatsApp API Response Data:", data);
-        
         if (data.success || data.ok || res.status === 200) {
           toast.success("تم إرسال إشعار واتساب للعميل بنجاح ✅📱", {
             duration: 4000,
             style: {
-              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-              color: '#1e293b',
-              borderRadius: '12px'
-            }
+              background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+              color: "#1e293b",
+              borderRadius: "12px",
+            },
           });
         } else {
           toast.success("تم إرسال إشعار واتساب للعميل 📱", {
             duration: 3000,
             style: {
-              background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-              color: '#1e293b',
-              borderRadius: '12px'
-            }
+              background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+              color: "#1e293b",
+              borderRadius: "12px",
+            },
           });
         }
       } else {
-        console.error("WhatsApp API Error Status:", res.status);
-        const errorData = await res.json().catch(() => ({}));
-        console.error("WhatsApp API Error Data:", errorData);
-        
         toast.error("تعذر إرسال رسالة واتساب. تحقق من مفتاح apiKey أو التفعيل 🔧", {
           duration: 4000,
           style: {
-            background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
-            color: '#fff',
-            borderRadius: '12px'
-          }
+            background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)",
+            color: "#fff",
+            borderRadius: "12px",
+          },
         });
       }
     } catch (error) {
@@ -116,48 +116,48 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       toast.error("تعذر الاتصال بخدمة واتساب. تحقق من الاتصال بالإنترنت 🌐", {
         duration: 4000,
         style: {
-          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
-          color: '#fff',
-          borderRadius: '12px'
-        }
+          background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)",
+          color: "#fff",
+          borderRadius: "12px",
+        },
       });
     }
   }
 
-  // دالة جديدة لحذف الحجز نهائياً من قاعدة البيانات
   async function deleteBooking(docId: string, bookingId: string) {
     try {
-      // حذف المستند من قاعدة البيانات
       await deleteDoc(doc(db, "bookings", docId));
-      
+
       toast.success(`تم حذف الحجز ${bookingId} نهائياً من النظام 🗑️`, {
         duration: 4000,
         style: {
-          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-          color: '#fff',
-          borderRadius: '12px',
-          border: '1px solid rgba(255, 255, 255, 0.1)'
-        }
+          background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+          color: "#fff",
+          borderRadius: "12px",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+        },
       });
-      
-      // تحديث القائمة المحلية
+
       fetchBookings();
-      
     } catch (error) {
       console.error("Error deleting booking:", error);
       toast.error("حدث خطأ أثناء حذف الحجز. حاول مرة أخرى 🔄", {
         duration: 4000,
         style: {
-          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
-          color: '#fff',
-          borderRadius: '12px'
-        }
+          background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)",
+          color: "#fff",
+          borderRadius: "12px",
+        },
       });
     }
   }
 
-  async function updateStatus(docId: string, newStatus: "confirmed" | "cancelled", totalAmount?: number) {
-    const booking = bookings.find(b => b.docId === docId);
+  async function updateStatus(
+    docId: string,
+    newStatus: "confirmed" | "cancelled",
+    totalAmount?: number
+  ) {
+    const booking = bookings.find((item) => item.docId === docId);
 
     if (newStatus === "confirmed") {
       if (!booking?.totalAmount || booking.totalAmount < booking.depositAmount) {
@@ -166,7 +166,6 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       }
     }
 
-    // إذا كانت الحالة الجديدة "cancelled" نحذف الحجز نهائياً
     if (newStatus === "cancelled") {
       if (booking) {
         await deleteBooking(docId, booking.bookingId);
@@ -174,12 +173,11 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       return;
     }
 
-    // إذا كانت الحالة "confirmed" نحدث فقط
     await updateDoc(doc(db, "bookings", docId), {
       status: newStatus,
-      ...(totalAmount && { totalAmount }),
+      ...(totalAmount !== undefined && { totalAmount }),
     });
-    
+
     toast.success("تم التأكيد بنجاح ✅");
 
     if (
@@ -188,22 +186,29 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       booking.apiKey &&
       booking.customerPhone
     ) {
-      sendWhatsAppNotification(booking.customerPhone, booking.apiKey, booking.bookingId);
+      sendWhatsAppNotification(
+        booking.customerPhone,
+        booking.apiKey,
+        booking.bookingId
+      );
     }
+
     fetchBookings();
   }
 
   async function downloadBookingAsPNG(docId: string) {
     const node = bookingRefs.current[docId];
-    if (!node) return;
-    
+    if (!node) {
+      return;
+    }
+
     toast.loading("جاري إنشاء الصورة... 📸");
-    
+
     try {
-      const canvas = await html2canvas(node, { 
+      const canvas = await html2canvas(node, {
         scale: 2,
-        backgroundColor: '#23242b',
-        useCORS: true 
+        backgroundColor: "#23242b",
+        useCORS: true,
       });
       const link = document.createElement("a");
       link.href = canvas.toDataURL("image/png");
@@ -217,412 +222,56 @@ export default function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  const total = bookings.length;
-  const confirmed = bookings.filter(b => b.status === "confirmed").length;
+  const totalBookings = bookings.length;
+  const confirmedBookings = bookings.filter(
+    (booking) => booking.status === "confirmed"
+  ).length;
+
+  const registerBookingRef = useCallback(
+    (docId: string, node: HTMLDivElement | null) => {
+      if (node) {
+        bookingRefs.current[docId] = node;
+      } else {
+        delete bookingRefs.current[docId];
+      }
+    },
+    []
+  );
+
+  const handleUpdateTotalAmount = (docId: string, totalAmount?: number) => {
+    setBookings((prev) =>
+      prev.map((booking) =>
+        booking.docId === docId ? { ...booking, totalAmount } : booking
+      )
+    );
+  };
+
+  const handleConfirmBooking = (docId: string, totalAmount?: number) => {
+    updateStatus(docId, "confirmed", totalAmount);
+  };
+
+  const handleDeleteBooking = (docId: string) => {
+    updateStatus(docId, "cancelled");
+  };
+
+  const handleDownloadBooking = (docId: string) => {
+    downloadBookingAsPNG(docId);
+  };
 
   return (
-    <div className="admin-container" style={{ 
-      maxWidth: '1400px', 
-      margin: '0 auto',
-      padding: '1rem'
-    }}>
+    <div className="admin-shell">
       <AdminCalendar />
-
-      {/* إحصائيات محسنة للموبايل */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '1rem',
-        marginBottom: '2rem'
-      }}>
-        <div className="tab-card active" style={{ 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          position: 'relative',
-          overflow: 'hidden',
-          padding: '1.5rem',
-          borderRadius: '16px',
-          color: '#fff',
-          textAlign: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>📊</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>الحجوزات النشطة</h3>
-          </div>
-          <span style={{ fontSize: '2rem', fontWeight: '800' }}>{total}</span>
-          <div style={{ fontSize: '0.7rem', opacity: 0.8, marginTop: '0.25rem' }}>
-            (الملغية تُحذف فوراً)
-          </div>
-        </div>
-        
-        <div className="tab-card" style={{ 
-          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-          color: '#fff',
-          padding: '1.5rem',
-          borderRadius: '16px',
-          textAlign: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '1.5rem' }}>🔒</span>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>المؤكدة</h3>
-          </div>
-          <span style={{ fontSize: '2rem', fontWeight: '800' }}>{confirmed}</span>
-        </div>
-      </div>
-      
-      {/* أزرار التحكم محسنة للموبايل */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-        marginBottom: '2rem'
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: '0.5rem',
-          flexWrap: 'wrap'
-        }}>
-          <button 
-            onClick={fetchBookings} 
-            className="admin-btn"
-            style={{ 
-              padding: '0.75rem 1rem',
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              flex: '1',
-              minWidth: '120px',
-              justifyContent: 'center'
-            }}
-          >
-            <span>🔄</span>
-            تحديث البيانات
-          </button>
-          
-          <Link 
-            href="/" 
-            className="booking-btn"
-            style={{ 
-              padding: '0.75rem 1rem',
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              textDecoration: 'none',
-              flex: '1',
-              minWidth: '120px',
-              justifyContent: 'center'
-            }}
-          >
-            <span>🏠</span>
-            العودة للرئيسية
-          </Link>
-        </div>
-        
-        <button 
-          onClick={onLogout} 
-          className="logout-btn"
-          style={{ 
-            padding: '0.75rem 1rem',
-            fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            justifyContent: 'center',
-            width: '100%'
-          }}
-        >
-          <span>🚪</span>
-          تسجيل خروج
-        </button>
-      </div>
-
-      {/* جدول الحجوزات محسن للموبايل */}
-      <div className="bookings-table">
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '0.5rem', 
-          marginBottom: '1.5rem',
-          justifyContent: 'center'
-        }}>
-          <span style={{ fontSize: '1.5rem' }}>📋</span>
-          <h2 style={{ margin: 0, fontSize: '1.3rem' }}>الحجوزات النشطة</h2>
-          <div style={{
-            background: 'rgba(34, 197, 94, 0.2)',
-            color: '#22c55e',
-            padding: '0.25rem 0.75rem',
-            borderRadius: '12px',
-            fontSize: '0.8rem',
-            fontWeight: '600'
-          }}>
-            الملغية تُحذف فوراً
-          </div>
-        </div>
-        
-        {loading ? (
-          <div className="text-center my-8" style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '1rem'
-          }}>
-            <div className="loading-spinner"></div>
-            <span>جاري التحميل...</span>
-          </div>
-        ) : bookings.length === 0 ? (
-          <div className="text-center my-8" style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '1rem',
-            padding: '3rem'
-          }}>
-            <span style={{ fontSize: '4rem' }}>📋</span>
-            <span style={{ fontSize: '1.1rem', color: '#64748b' }}>لا توجد حجوزات نشطة</span>
-            <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>الحجوزات الملغية يتم حذفها تلقائياً</span>
-          </div>
-        ) : (
-          bookings.map((b) => (
-            <div key={b.docId} className="booking-item" style={{ 
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem',
-              marginBottom: '1.5rem',
-              background: 'rgba(15, 23, 42, 0.8)',
-              borderRadius: '16px',
-              padding: '1rem',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
-            }}>
-              {/* التفاصيل محسنة للموبايل */}
-              <div
-                className="booking-info"
-                ref={el => { bookingRefs.current[b.docId] = el; }}
-                dir="rtl"
-                style={{
-                  background: "rgba(30, 41, 59, 0.6)",
-                  backdropFilter: "blur(10px)",
-                  color: "#fff",
-                  borderRadius: 12,
-                  padding: '1rem',
-                  fontFamily: "inherit",
-                  fontSize: 14,
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-              >
-                {/* شريط الحالة */}
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '3px',
-                  background: b.status === "confirmed" 
-                    ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                    : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)'
-                }}></div>
-
-                <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>🔢</span>
-                    <span style={{ fontWeight: 700 }}>رقم الحجز:</span> 
-                    <span style={{ color: '#60a5fa', fontFamily: 'monospace', fontSize: '0.9rem' }}>{b.bookingId}</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>👤</span>
-                    <span style={{ fontWeight: 700 }}>العميل:</span> 
-                    <span style={{ color: "#4ade80", fontWeight: '700' }}>{b.customerName}</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>📱</span>
-                    <span style={{ fontWeight: 700 }}>الجوال:</span> 
-                    <span style={{ color: "#60a5fa", fontFamily: 'monospace', fontSize: '0.9rem' }}>{b.customerPhone}</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>🆔</span>
-                    <span style={{ fontWeight: 700 }}>رقم الهوية:</span> 
-                    <span style={{ color: "#60a5fa", fontFamily: 'monospace', fontSize: '0.9rem' }}>{b.nationalId}</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>📅</span>
-                    <span style={{ fontWeight: 700 }}>يوم الحجز:</span> 
-                    <span style={{ color: '#60a5fa', fontWeight: '700' }}>{(() => {
-                      const [y, m, d] = b.date.split("-").map(Number);
-                      const gregorianDate = new Date(y, m - 1, d);
-                      return gregorianDate.toLocaleDateString('ar-EG', { weekday: 'long' });
-                    })()}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>📅</span>
-                    <span style={{ fontWeight: 700 }}>التاريخ الميلادي:</span> 
-                    <span style={{ color: '#f8fafc' }}>{b.date}</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>🌙</span>
-                    <span style={{ fontWeight: 700 }}>التاريخ الهجري:</span> 
-                    <span style={{ color: '#22c55e' }}>{(() => {
-                      const [y, m, d] = b.date.split("-").map(Number);
-                      const gregorianDate = new Date(y, m - 1, d);
-                      return getFullHijriDate(gregorianDate);
-                    })()}</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>💰</span>
-                    <span style={{ fontWeight: 700 }}>العربون:</span> 
-                    <span style={{ color: "#facc15", fontWeight: '700' }}>{b.depositAmount} ريال</span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>💵</span>
-                    <span style={{ fontWeight: 700 }}>المبلغ الكلي:</span> 
-                    <span style={{ color: "#eab308", fontWeight: '700' }}>
-                      {b.totalAmount ? `${b.totalAmount} ريال` : "—"}
-                    </span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <span>💳</span>
-                    <span style={{ fontWeight: 700 }}>المبلغ المتبقي:</span> 
-                    <span style={{ color: "#f87171", fontWeight: '700' }}>
-                      {(b.totalAmount && b.depositAmount) ? `${b.totalAmount - b.depositAmount} ريال` : "—"}
-                    </span>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span>
-                      {b.status === "confirmed" ? "🔒" : "⏳"}
-                    </span>
-                    <span style={{ fontWeight: 700 }}>الحالة:</span>
-                    <span style={{
-                      color: b.status === "confirmed"
-                        ? "#ef4444"
-                        : "#f59e0b",
-                      fontWeight: 700,
-                    }}>
-                      {b.status === "confirmed"
-                        ? "محجوز"
-                        : "في الانتظار"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* أزرار التحكم محسنة للموبايل */}
-              <div className="booking-actions" style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '0.75rem',
-                width: '100%'
-              }}>
-                {b.status === "pending" && (
-                  <>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{
-                        position: 'absolute',
-                        left: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        fontSize: '1rem',
-                        zIndex: 1
-                      }}>💰</span>
-                      <input
-                        type="number"
-                        className="input"
-                        placeholder="إجمالي المبلغ"
-                        value={b.totalAmount ?? ""}
-                        min={b.depositAmount}
-                        style={{
-                          paddingLeft: '40px',
-                          fontSize: '0.9rem',
-                          minHeight: '44px',
-                          width: '100%',
-                          borderRadius: '8px'
-                        }}
-                        onChange={e => {
-                          const val = Number(e.target.value);
-                          setBookings(prev =>
-                            prev.map(x => x.docId === b.docId ? { ...x, totalAmount: val } : x)
-                          );
-                        }}
-                      />
-                    </div>
-                    <button 
-                      className="confirm-btn" 
-                      onClick={() => updateStatus(b.docId, "confirmed", b.totalAmount)}
-                      style={{
-                        minHeight: '44px',
-                        fontSize: '0.9rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        width: '100%',
-                        borderRadius: '8px'
-                      }}
-                    >
-                      <span>✅</span>
-                      تأكيد الحجز
-                    </button>
-                  </>
-                )}
-                
-                {/* زر الحذف النهائي بدلاً من الإلغاء */}
-                <button 
-                  className="cancel-btn" 
-                  onClick={() => {
-                    if (confirm(`هل أنت متأكد من حذف حجز ${b.bookingId} نهائياً؟\nلا يمكن التراجع عن هذا الإجراء!`)) {
-                      updateStatus(b.docId, "cancelled");
-                    }
-                  }}
-                  style={{
-                    minHeight: '44px',
-                    fontSize: '0.9rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    width: '100%',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
-                  }}
-                >
-                  <span>🗑️</span>
-                  حذف الحجز نهائياً
-                </button>
-                
-                {b.status === "confirmed" && (
-                  <button
-                    className="admin-btn"
-                    onClick={() => downloadBookingAsPNG(b.docId)}
-                    style={{
-                      minHeight: '44px',
-                      fontSize: '0.9rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      width: '100%',
-                      borderRadius: '8px'
-                    }}
-                  >
-                    <span>📸</span>
-                    تحميل صورة
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <AdminStatsOverview total={totalBookings} confirmed={confirmedBookings} />
+      <AdminActionPanel onRefresh={fetchBookings} onLogout={onLogout} />
+      <AdminBookingList
+        bookings={bookings}
+        loading={loading}
+        registerBookingRef={registerBookingRef}
+        onUpdateTotalAmount={handleUpdateTotalAmount}
+        onConfirmBooking={handleConfirmBooking}
+        onDeleteBooking={handleDeleteBooking}
+        onDownloadBooking={handleDownloadBooking}
+      />
     </div>
   );
 }

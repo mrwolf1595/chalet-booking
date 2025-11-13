@@ -2,7 +2,7 @@
 
 import { JSX, useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import { getFullHijriDate, getCurrentHijriDate } from "@/lib/hijri";
 
@@ -36,8 +36,6 @@ export default function AdminCalendar() {
       today.setHours(0, 0, 0, 0);
 
       const arr: Booking[] = [];
-      const deletePromises: Promise<void>[] = [];
-
       snapshot.forEach(docSnap => {
         const d = docSnap.data();
         if (d.date && d.status === "confirmed") {
@@ -46,11 +44,7 @@ export default function AdminCalendar() {
           const bookingDate = new Date(y, m - 1, day);
           bookingDate.setHours(0, 0, 0, 0);
 
-          if (bookingDate < today) {
-            // إذا قديم: حذف الحجز نهائياً من قاعدة البيانات
-            const ref = doc(db, "bookings", docSnap.id);
-            deletePromises.push(deleteDoc(ref));
-          } else {
+          if (bookingDate >= today) {
             arr.push({
               date: d.date,
               status: d.status,
@@ -64,9 +58,6 @@ export default function AdminCalendar() {
         }
         // أي حجز ملغي (cancelled) سيتم تجاهله تماماً لأنه مُحذف من لوحة الإدارة
       });
-
-      // تنفيذ عمليات الحذف للحجوزات القديمة
-      await Promise.all(deletePromises);
 
       setBookings(arr);
     }
